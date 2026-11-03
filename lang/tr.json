@@ -1,0 +1,16 @@
+{
+    "Showing": "Gösterilen:",
+    "to": "-",
+    "of": "/",
+    "results": "kayıt",
+    "Pagination Navigation": "Sayfalama",
+    "Go to page :page": ":page. sayfaya git",
+    "&laquo; Previous": "&laquo; Önceki",
+    "Next &raquo;": "Sonraki &raquo;",
+    "Too Many Attempts.": "Çok fazla deneme. Lütfen daha sonra tekrar deneyin.",
+    "Unauthenticated.": "Oturum açmanız gerekiyor.",
+    "This action is unauthorized.": "Bu işlem için yetkiniz yok.",
+    "Not Found": "Bulunamadı",
+    "Forbidden": "Erişim engellendi",
+    "Page Expired": "Sayfanın süresi doldu, lütfen yenileyin"
+}
