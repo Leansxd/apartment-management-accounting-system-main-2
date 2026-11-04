@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /** Çift taraflı yevmiye satırı. Yalnızca eklenir; düzeltme ters kayıtla yapılır. */
 class LedgerEntry extends Model
@@ -21,4 +22,6 @@ class LedgerEntry extends Model
     {
         return ['debit' => 'decimal:2', 'credit' => 'decimal:2'];
     }
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

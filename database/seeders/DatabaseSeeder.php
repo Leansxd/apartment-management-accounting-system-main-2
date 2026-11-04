@@ -83,5 +83,27 @@ class DatabaseSeeder extends Seeder
         $poll = $apt->polls()->create(['question' => 'Bahçeye çocuk parkı yapılsın mı?', 'due_date' => today()->addWeeks(2)]);
         $poll->options()->createMany([['text' => 'Evet'], ['text' => 'Hayır']]);
         $apt->inventoryItems()->create(['name' => 'Çöp poşeti (rulo)', 'category' => 'Temizlik', 'quantity' => 3, 'min_stock' => 5]);
+
+        // --- Muhasebe ve yönetim modülleri ---
+        $apt->update(['late_fee_enabled' => true, 'late_fee_rate' => 5, 'late_fee_grace_days' => 0]);
+        $year = (int) now()->year;
+        foreach ($apt->categories()->get() as $category) {
+            $planned = ['Aidat' => 216000, 'Elektrik' => 24000, 'Su' => 12000, 'Temizlik' => 120000, 'Bakım Onarım' => 36000][$category->name] ?? null;
+            $planned && $apt->budgetItems()->create(['year' => $year, 'category_id' => $category->id, 'amount' => $planned]);
+        }
+        $apt->assets()->create(['name' => 'Jeneratör 60 kVA', 'category' => 'Jeneratör', 'purchase_date' => now()->subYears(2)->toDateString(), 'cost' => 180000, 'useful_life_years' => 10, 'salvage_value' => 18000, 'location' => 'Otopark kat -1']);
+        $apt->assets()->create(['name' => 'Güvenlik kamera sistemi', 'category' => 'Güvenlik Sistemi', 'purchase_date' => now()->subMonths(8)->toDateString(), 'cost' => 45000, 'useful_life_years' => 5, 'vendor_id' => $vendor->id]);
+        $apt->staff()->update(['salary' => 26500]);
+        app(\App\Services\PayrollService::class)->generate($apt, now()->format('Y-m'), $admin);
+        $tenis = $apt->commonAreas()->create(['name' => 'Tenis kortu', 'hourly_fee' => 150, 'open_time' => '08:00', 'close_time' => '22:00']);
+        $apt->commonAreas()->create(['name' => 'Çok amaçlı salon', 'hourly_fee' => 400, 'description' => 'Doğum günü, toplantı', 'capacity' => 60]);
+        app(\App\Services\ReservationService::class)->book($tenis, $apt->units()->first(), now()->addDays(2)->toDateString(), '18:00', '20:00', $admin, null, true);
+        $meeting = $apt->meetings()->create(['title' => now()->year.' Olağan Genel Kurul', 'meets_at' => now()->addWeeks(3)->setTime(19, 0), 'location' => 'Sosyal tesis', 'agenda' => "1. Açılış ve divan seçimi\n2. Yıllık gelir-gider raporu\n3. Bütçe ve aidat tutarı"]);
+        foreach ($apt->units()->limit(8)->get() as $unit) {
+            $meeting->attendances()->create(['unit_id' => $unit->id]);
+        }
+        $apt->documents()->count() || $apt->documents()->create(['title' => 'Asansör bakım sözleşmesi', 'category' => 'Sözleşme', 'file_path' => 'documents/demo.txt', 'original_name' => 'sozlesme.txt', 'size' => 0, 'expires_on' => now()->addMonths(2)]);
+        $overdueDebt = $apt->debts()->where('status', 'pending')->orderBy('due_date')->first();
+        $overdueDebt && $finance->setLegal($overdueDebt, true, 'Örnek icra dosyası 2026/145', $admin);
     }
 }

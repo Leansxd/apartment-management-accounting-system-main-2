@@ -15,4 +15,6 @@ class Ticket extends Model
 
     public function unit(): BelongsTo { return $this->belongsTo(Unit::class)->withTrashed(); }
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

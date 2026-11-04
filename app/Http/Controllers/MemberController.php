@@ -52,7 +52,7 @@ class MemberController extends Controller
             'member' => $member,
             'statement' => $reports->statement($unit),
             'debts' => $unit->debts()->latest('due_date')->get(),
-            'payments' => $unit->cashTransactions()->where('type', 'income')->latest('id')->limit(30)->get(),
+            'payments' => $unit->cashTransactions()->effective()->where('type', 'income')->latest('id')->limit(30)->get(),
         ]);
     }
 
@@ -82,13 +82,33 @@ class MemberController extends Controller
         return back()->with('status', 'Mobil hesap bağlantısı kaldırıldı, yeni davet kodu üretildi.');
     }
 
-    /** Üye silinir (geçmiş için saklanır); davet kodu geçersiz olur, sakinin erişimi biter. */
-    public function destroy(Apartment $apartment, Member $member)
+    /**
+     * Daireden ayrılış / devir: üye geçmişe taşınır (silinmez), davet kodu geçersiz olur ve sakinin
+     * mobil erişimi hemen biter. Yeni sakin için aynı daireye yeni üye eklenir; eski borçlar daireye aittir.
+     */
+    public function destroy(Request $request, Apartment $apartment, Member $member)
     {
-        $member->update(['invite_code' => null]);
+        $data = $request->validate([
+            'moved_out_on' => ['nullable', 'date', 'before_or_equal:today'],
+            'move_out_reason' => ['nullable', 'string', 'max:150'],
+        ]);
+        $member->update([
+            'invite_code' => null,
+            'moved_out_on' => $data['moved_out_on'] ?? today(),
+            'move_out_reason' => $data['move_out_reason'] ?? null,
+        ]);
         $member->delete();
 
-        return redirect()->route('site.members.index', $apartment)->with('status', 'Üye silindi.');
+        return redirect()->route('site.members.index', $apartment)->with('status', 'Üye geçmişe taşındı (daireden ayrıldı).');
+    }
+
+    /** Daireden ayrılmış (geçmiş) üyeler */
+    public function history(Apartment $apartment)
+    {
+        return view('site.members-history', [
+            'apartment' => $apartment,
+            'members' => $apartment->members()->onlyTrashed()->with('unit.block')->orderByDesc('moved_out_on')->orderByDesc('deleted_at')->paginate(50),
+        ]);
     }
 
     private function validated(Request $request, Apartment $apartment, bool $withUnit = true): array
@@ -103,6 +123,7 @@ class MemberController extends Controller
             'emergency_phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'moved_in_on' => ['nullable', 'date'],
         ]));
     }
 }

@@ -111,7 +111,7 @@ class ReportController extends Controller
                     'amount' => 'Tutar', 'paid' => 'Ödenen', 'remaining' => 'Kalan', 'status' => 'Durum'], $rows->values(), $totals];
 
             case 'receipts':
-                $rows = $apartment->cashTransactions()->with('unit.block', 'cashbox', 'performer')
+                $rows = $apartment->cashTransactions()->effective()->with('unit.block', 'cashbox', 'performer')
                     ->whereIn('sub_type', ['collection', 'pos', 'advance'])
                     ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
                     ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))

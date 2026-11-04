@@ -3,7 +3,10 @@
         @csrf
         <div class="card-head">
             <h2 class="card-title">{{ $overdue->count() }} daire · toplam {{ tl($overdue->sum('total')) }}</h2>
-            <button class="btn btn-primary" @disabled($overdue->isEmpty())>Seçilenlere hatırlatma gönder</button>
+            <span class="flex flex-wrap items-center gap-3">
+                <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="send_email" value="1" class="rounded border-slate-300"> E-posta da gönder</label>
+                <button class="btn btn-primary" @disabled($overdue->isEmpty())>Seçilenlere hatırlatma gönder</button>
+            </span>
         </div>
         <div class="overflow-x-auto">
             <table class="table">

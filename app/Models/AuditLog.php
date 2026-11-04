@@ -17,4 +17,6 @@ class AuditLog extends Model
     }
 
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

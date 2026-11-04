@@ -11,6 +11,7 @@
                 <div><label class="label" for="m-name">Ad soyad *</label><input class="input" id="m-name" name="full_name" value="{{ old('full_name') }}" required></div>
                 <div><label class="label" for="m-phone">Telefon</label><input class="input" id="m-phone" name="phone" value="{{ old('phone') }}"></div>
                 <div><label class="label" for="m-email">E-posta</label><input class="input" id="m-email" type="email" name="email" value="{{ old('email') }}"></div>
+                <div><label class="label" for="m-in">Daireye giriş tarihi</label><input class="input" id="m-in" type="date" name="moved_in_on" value="{{ old('moved_in_on') }}"></div>
                 <div><label class="label" for="m-tc">TC kimlik no</label><input class="input" id="m-tc" name="id_number" inputmode="numeric" maxlength="11" value="{{ old('id_number') }}"></div>
                 <div><label class="label" for="m-em">Acil durum telefonu</label><input class="input" id="m-em" name="emergency_phone" value="{{ old('emergency_phone') }}"></div>
                 <div><label class="label" for="m-addr">Adres</label><input class="input" id="m-addr" name="address" value="{{ old('address') }}"></div>
@@ -22,7 +23,7 @@
 
     <section class="card">
         <div class="card-head">
-            <h2 class="card-title">Üye listesi</h2>
+            <h2 class="card-title">Üye listesi <a class="ml-2 text-[10px] font-bold text-brand-500 hover:underline" href="{{ route('site.members.history', $apartment) }}">Geçmiş üyeler →</a></h2>
             <form method="GET" class="flex gap-2">
                 <label class="sr-only" for="q">Ara</label>
                 <input class="input" id="q" name="q" value="{{ $search }}" placeholder="Ad, telefon, e-posta">

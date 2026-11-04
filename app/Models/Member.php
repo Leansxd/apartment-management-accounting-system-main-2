@@ -20,7 +20,7 @@ class Member extends Model
 
     protected function casts(): array
     {
-        return ['activated_at' => 'datetime'];
+        return ['activated_at' => 'datetime', 'moved_in_on' => 'date', 'moved_out_on' => 'date'];
     }
 
     public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }

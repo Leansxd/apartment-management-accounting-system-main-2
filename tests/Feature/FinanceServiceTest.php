@@ -110,7 +110,7 @@ class FinanceServiceTest extends TestCase
             $this->finance->deleteDebt(Debt::where('description', 'Ödenen')->first());
             $this->fail('Ödemesi olan borç silinmemeli');
         } catch (FinanceException $e) {
-            $this->assertStringContainsString('silinemez', $e->getMessage());
+            $this->assertStringContainsString('iptal edin', $e->getMessage());
         }
 
         $this->finance->deleteDebt(Debt::where('description', 'Ödenmeyen')->first());

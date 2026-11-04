@@ -13,6 +13,41 @@ final class Money
         return (int) round(((float) $value) * 100);
     }
 
+    /**
+     * Bir tutarı ağırlıklara orantılı böler; toplam her zaman tam olarak $total kuruş eder
+     * ("en büyük kalan" yöntemi). Ağırlıkların toplamı 0 ise eşit bölünür.
+     *
+     * @param  array<int|string, int|float>  $weights  anahtarlar korunur
+     * @return array<int|string, int>
+     */
+    public static function allocate(int $total, array $weights): array
+    {
+        if ($weights === []) {
+            return [];
+        }
+        $sum = array_sum($weights);
+        if ($sum <= 0) {
+            $weights = array_fill_keys(array_keys($weights), 1);
+            $sum = count($weights);
+        }
+        $shares = $floors = [];
+        foreach ($weights as $key => $weight) {
+            $exact = $total * $weight / $sum;
+            $floors[$key] = (int) floor($exact);
+            $shares[$key] = $exact - $floors[$key];
+        }
+        $left = $total - array_sum($floors);
+        arsort($shares);
+        foreach (array_keys($shares) as $key) {
+            if ($left-- <= 0) {
+                break;
+            }
+            $floors[$key]++;
+        }
+
+        return array_replace($weights, $floors);
+    }
+
     public static function decimal(int $cents): string
     {
         return number_format($cents / 100, 2, '.', '');

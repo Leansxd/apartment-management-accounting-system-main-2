@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SecurityEntry extends Model
 {
@@ -26,4 +27,6 @@ class SecurityEntry extends Model
     {
         return self::STATUSES[$this->kind][$this->status] ?? $this->status;
     }
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

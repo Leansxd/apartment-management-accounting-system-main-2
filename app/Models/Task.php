@@ -19,4 +19,6 @@ class Task extends Model
     }
 
     public function staff(): BelongsTo { return $this->belongsTo(Staff::class); }
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

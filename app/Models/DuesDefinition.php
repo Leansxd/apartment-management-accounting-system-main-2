@@ -16,4 +16,6 @@ class DuesDefinition extends Model
     }
 
     public function category(): BelongsTo { return $this->belongsTo(TransactionCategory::class); }
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

@@ -42,7 +42,15 @@
                 @if ($member->user_id)
                     <form method="POST" action="{{ route('site.members.unlink', [$apartment, $member]) }}" onsubmit="return confirm('Sakin bu dairenin kayıtlarını artık göremeyecek. Devam?')">@csrf<button class="btn btn-secondary w-full">Mobil bağlantıyı kaldır</button></form>
                 @endif
-                <form method="POST" action="{{ route('site.members.destroy', [$apartment, $member]) }}" onsubmit="return confirm('Üye silinsin mi?')">@csrf @method('DELETE')<button class="btn btn-danger w-full">Üyeyi sil</button></form>
+                <details class="panel rounded-xl border border-red-100">
+                    <summary class="btn btn-danger w-full">Daireden ayrıldı / devir</summary>
+                    <form method="POST" action="{{ route('site.members.destroy', [$apartment, $member]) }}" class="space-y-2 p-3" onsubmit="return confirm('Üye geçmişe taşınsın mı? Mobil erişimi hemen biter.')">
+                        @csrf @method('DELETE')
+                        <label class="label" for="mo-date">Ayrılış tarihi</label><input class="input" id="mo-date" type="date" name="moved_out_on" value="{{ today()->toDateString() }}" max="{{ today()->toDateString() }}">
+                        <label class="label" for="mo-reason">Neden</label><input class="input" id="mo-reason" name="move_out_reason" placeholder="ör. Satış, kira sonu">
+                        <button class="btn btn-danger w-full">Geçmişe taşı</button>
+                    </form>
+                </details>
             </div>
         </section>
     </div>

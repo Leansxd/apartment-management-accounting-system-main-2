@@ -10,6 +10,7 @@ use App\Services\ReportService;
 use App\Support\Money;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 
 /** Duyurular, anketler, karar defteri, bildirimler ve gecikmiş borç hatırlatmaları */
@@ -158,8 +159,35 @@ class CommunicationController extends Controller
             'units' => $data['unit_ids'],
         };
         $count = $this->notify($apartment, $request->user()->id, $data['title'], $data['body'], $unitIds);
+        $mail = $request->boolean('send_email') ? $this->emailMembers($apartment, $unitIds, $data['title'], $data['body']) : null;
 
-        return back()->with('status', $count ? "Bildirim gönderildi ({$count} kayıt)." : 'Hedefte daire bulunamadı.');
+        return back()->with('status', $count ? "Bildirim gönderildi ({$count} kayıt)."
+            .($mail ? " E-posta: {$mail['sent']} gönderildi".($mail['failed'] ? ", {$mail['failed']} hatalı" : '').'.' : '') : 'Hedefte daire bulunamadı.');
+    }
+
+    /**
+     * Hedef dairelerin (null = tüm site) e-posta adresi olan üyelerine e-posta gönderir.
+     * E-posta ayarı yoksa (MAIL_MAILER=log) mesajlar storage/logs içine yazılır; gönderim hatası işlemi bozmaz.
+     *
+     * @param  array<int,int>|null  $unitIds
+     * @return array{sent: int, failed: int}
+     */
+    private function emailMembers(Apartment $apartment, ?array $unitIds, string $subject, string $body): array
+    {
+        $emails = $apartment->members()->whereNotNull('email')->where('email', '!=', '')
+            ->when($unitIds !== null, fn ($q) => $q->whereIn('unit_id', $unitIds))->pluck('email')->unique()->filter(fn ($e) => filter_var($e, FILTER_VALIDATE_EMAIL));
+        $result = ['sent' => 0, 'failed' => 0];
+        foreach ($emails as $email) {
+            try {
+                Mail::raw("{$body}\n\n— {$apartment->name} Yönetimi", fn ($m) => $m->to($email)->subject("[{$apartment->name}] {$subject}"));
+                $result['sent']++;
+            } catch (\Throwable $e) {
+                report($e);
+                $result['failed']++;
+            }
+        }
+
+        return $result;
     }
 
     // ------------------------------------------------------------------ AKILLI HATIRLATICI
@@ -178,13 +206,20 @@ class CommunicationController extends Controller
         $selected = collect($request->validate(['unit_ids' => ['required', 'array'], 'unit_ids.*' => ['integer']])['unit_ids']);
         $overdue = $reports->overdueByUnit($apartment)->filter(fn ($row) => $selected->contains($row['unit']->id));
 
+        $mail = ['sent' => 0, 'failed' => 0];
         foreach ($overdue as $row) {
-            $this->notify($apartment, $request->user()->id, 'Ödeme Hatırlatması',
-                "Sayın sakinimiz, {$row['unit']->label()} dairesine ait vadesi geçmiş ".Money::format($row['total'])
-                .' tutarında borcunuz bulunmaktadır. Lütfen en kısa sürede ödeme yapınız.', [$row['unit']->id], 'warning');
+            $body = "Sayın sakinimiz, {$row['unit']->label()} dairesine ait vadesi geçmiş ".Money::format($row['total'])
+                .' tutarında borcunuz bulunmaktadır. Lütfen en kısa sürede ödeme yapınız.';
+            $this->notify($apartment, $request->user()->id, 'Ödeme Hatırlatması', $body, [$row['unit']->id], 'warning');
+            if ($request->boolean('send_email')) {
+                $r = $this->emailMembers($apartment, [$row['unit']->id], 'Ödeme Hatırlatması', $body);
+                $mail['sent'] += $r['sent'];
+                $mail['failed'] += $r['failed'];
+            }
         }
 
-        return back()->with('status', $overdue->count().' daireye hatırlatma gönderildi.');
+        return back()->with('status', $overdue->count().' daireye hatırlatma gönderildi.'
+            .($request->boolean('send_email') ? " E-posta: {$mail['sent']} gönderildi".($mail['failed'] ? ", {$mail['failed']} hatalı" : '').'.' : ''));
     }
 
     /** @param  array<int,int>|null  $unitIds  null = tüm site */

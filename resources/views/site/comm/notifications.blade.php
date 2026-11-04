@@ -14,6 +14,7 @@
                     <select class="input h-32" id="unit_ids" name="unit_ids[]" multiple>@foreach ($units as $u)<option value="{{ $u->id }}">{{ $u->label() }}</option>@endforeach</select></div>
             </div>
             <div><label class="label" for="body">Mesaj *</label><textarea class="input" id="body" name="body" rows="3" required>{{ old('body') }}</textarea></div>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="send_email" value="1" class="rounded border-slate-300" @checked(old('send_email'))> Ayrıca üyelerin e-posta adreslerine gönder</label>
             <button class="btn btn-primary">Gönder</button>
             <p class="text-xs text-slate-500">Not: Bildirimler uygulama içinde saklanır. Telefona anlık (push) bildirim için ayrıca FCM gibi bir servis entegrasyonu gerekir.</p>
         </form>

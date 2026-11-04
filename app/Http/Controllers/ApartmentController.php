@@ -80,10 +80,27 @@ class ApartmentController extends Controller
     public function addManager(Request $request, Apartment $apartment)
     {
         $this->authorizeOwner($request, $apartment);
-        $data = $request->validate(['user_id' => ['required', Rule::exists('users', 'id')->where('role', 'admin')]]);
-        $apartment->managers()->syncWithoutDetaching([$data['user_id']]);
+        $data = $request->validate([
+            'user_id' => ['required', Rule::exists('users', 'id')->where('role', 'admin')],
+            'role' => ['required', Rule::in(array_keys(Apartment::ROLES))],
+        ]);
+        $apartment->managers()->syncWithoutDetaching([$data['user_id'] => ['role' => $data['role']]]);
 
         return back()->with('status', 'Yönetici eklendi.');
+    }
+
+    /** Yöneticinin bu sitedeki rolünü değiştirir (site sahibi her zaman tam yetkilidir). */
+    public function updateManagerRole(Request $request, Apartment $apartment, User $user)
+    {
+        $this->authorizeOwner($request, $apartment);
+        $data = $request->validate(['role' => ['required', Rule::in(array_keys(Apartment::ROLES))]]);
+        if ($user->id === $apartment->owner_id) {
+            return back()->with('error', 'Site sahibinin rolü değiştirilemez.');
+        }
+        abort_unless($apartment->managers()->whereKey($user->id)->exists(), 404);
+        $apartment->managers()->updateExistingPivot($user->id, ['role' => $data['role']]);
+
+        return back()->with('status', 'Rol güncellendi.');
     }
 
     public function removeManager(Request $request, Apartment $apartment, User $user)

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Staff extends Model
@@ -19,4 +20,6 @@ class Staff extends Model
     }
 
     public function tasks(): HasMany { return $this->hasMany(Task::class); }
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

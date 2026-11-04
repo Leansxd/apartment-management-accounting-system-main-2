@@ -65,6 +65,6 @@
             <h2 class="card-title">Kasa hareketleri</h2>
             @if ($cashboxId)<a class="btn btn-secondary btn-sm" href="{{ route('site.cashboxes.index', $apartment) }}">Tüm kasalar</a>@endif
         </div>
-        @include('site.finance._transactions', ['transactions' => $transactions])
+        @include('site.finance._transactions', ['transactions' => $transactions, 'actions' => true])
     </section>
 </x-layout>

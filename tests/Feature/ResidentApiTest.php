@@ -96,4 +96,31 @@ class ResidentApiTest extends TestCase
         $this->postJson("/api/sites/{$apt->id}/polls/{$poll->id}/vote", ['option_id' => $option->id], $headers)->assertStatus(409);
         $this->getJson("/api/sites/{$apt->id}/polls", $headers)->assertJsonPath('0.options.0.votes', 1);
     }
+
+    public function test_mobil_rezervasyon_alan_listesi_cakisma_ve_iptal(): void
+    {
+        $apt = $this->site(2);
+        [$mine, $theirs] = $apt->units()->orderBy('id')->get();
+        $user = User::factory()->create();
+        $apt->members()->create(['unit_id' => $mine->id, 'full_name' => 'Ben', 'user_id' => $user->id]);
+        $area = $apt->commonAreas()->create(['name' => 'Salon', 'hourly_fee' => 100, 'requires_approval' => false]);
+        $apt->commonAreas()->create(['name' => 'Kapalı', 'is_active' => false]);
+        $headers = $this->token($user);
+        $date = now()->addDays(3)->toDateString();
+
+        $this->getJson("/api/sites/{$apt->id}/areas", $headers)->assertJsonCount(1)->assertJsonPath('0.name', 'Salon');
+        $id = $this->postJson("/api/sites/{$apt->id}/reservations", ['common_area_id' => $area->id, 'date' => $date, 'start_time' => '10:00', 'end_time' => '12:00'], $headers)
+            ->assertCreated()->assertJsonPath('status', 'approved')->assertJsonPath('fee', 200)->json('id');
+
+        // Aynı saat ikinci kez alınamaz; başkasının dairesi adına rezervasyon yapılamaz
+        $this->postJson("/api/sites/{$apt->id}/reservations", ['common_area_id' => $area->id, 'date' => $date, 'start_time' => '11:00', 'end_time' => '13:00'], $headers)->assertStatus(422);
+        $this->postJson("/api/sites/{$apt->id}/reservations", ['common_area_id' => $area->id, 'unit_id' => $theirs->id, 'date' => $date, 'start_time' => '15:00', 'end_time' => '16:00'], $headers)->assertStatus(422);
+
+        $this->getJson("/api/sites/{$apt->id}/reservations", $headers)->assertJsonCount(1)->assertJsonPath('0.can_cancel', true);
+        $this->deleteJson("/api/sites/{$apt->id}/reservations/{$id}", [], $headers)->assertOk();
+        $this->assertSame(0, \App\Models\Debt::count()); // ücret borcu silindi
+
+        $apt->meetings()->create(['title' => 'Genel kurul', 'meets_at' => now()->addWeek()]);
+        $this->getJson("/api/sites/{$apt->id}/meetings", $headers)->assertJsonPath('0.title', 'Genel kurul');
+    }
 }

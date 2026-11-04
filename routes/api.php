@@ -25,6 +25,11 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::post('/notifications/{notification}/read', [ResidentController::class, 'markRead']);
         Route::get('/polls', [ResidentController::class, 'polls']);
         Route::post('/polls/{poll}/vote', [ResidentController::class, 'vote']);
+        Route::get('/areas', [ResidentController::class, 'areas']);
+        Route::get('/reservations', [ResidentController::class, 'reservations']);
+        Route::post('/reservations', [ResidentController::class, 'storeReservation']);
+        Route::delete('/reservations/{reservation}', [ResidentController::class, 'cancelReservation']);
+        Route::get('/meetings', [ResidentController::class, 'meetings']);
         Route::get('/tickets', [ResidentController::class, 'tickets']);
         Route::post('/tickets', [ResidentController::class, 'storeTicket']);
     });

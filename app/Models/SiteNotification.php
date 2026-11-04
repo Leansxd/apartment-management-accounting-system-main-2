@@ -19,4 +19,6 @@ class SiteNotification extends Model
     {
         return $this->belongsToMany(User::class, 'notification_reads', 'notification_id')->withPivot('read_at');
     }
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

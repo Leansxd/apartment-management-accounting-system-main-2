@@ -56,9 +56,19 @@ Muhasebe kuralları (avans mahsubu, tahsilat dağıtımı, mükerrer tahakkuk en
 ## Modüller
 
 - **Siteler, bloklar, daireler, daire grupları**; **üyeler/sakinler** (davet kodu ile mobil bağlantı)
-- **Finans:** borç dağıtımı, aidat motoru (dönem bazlı, mükerrersiz), tahsilat (en eski borçtan kapatır, fazlası avans), kasa/banka, virman, gider/fatura onayı, firmalar, gelir-gider tablosu, daire hesap ekstresi, yevmiye defteri
+- **Finans:** borç dağıtımı, aidat motoru (dönem bazlı, mükerrersiz), tahsilat (en eski borçtan kapatır, fazlası avans), kasa/banka, virman, gider/fatura onayı, firmalar
+- **Gecikme zammı:** vadesi geçen borçlara aylık oran (KMK m.20: %5) ve ek süre; önizleme + tek tıkla yazma, aynı ay için ikinci kez zam yazılmaz
+- **Düzeltme işlemleri:** tahsilat / gider / iade **iptali** (silmez, ters kayıt atar; borç yeniden açılır, kasa ve avans geri alınır), **avans iadesi** ve borca **mahsup**, borcun **taksitlendirilmesi** (kuruşu kuruşuna), **icra takibi** işareti, yazdırılabilir **makbuz**
+- **Banka mutabakatı:** CSV ekstre içe aktarma (aynı ekstre ikinci kez yüklenmez), açıklamadan daire / üye adıyla otomatik eşleştirme, toplu tahsilata çevirme
+- **Mali raporlar:** mizan, kasa defteri (yürüyen bakiye), mali durum tablosu (varlık / yükümlülük / net varlık), alacak yaşlandırma (0-30-60-90+ gün), yıllık bütçe–gerçekleşen karşılaştırması, gelir-gider tablosu, daire hesap ekstresi, yevmiye defteri
+- **Personel bordrosu** (dönem başına tek maaş gideri, kasadan ödeme), **demirbaş kaydı** (doğrusal amortisman, net defter değeri), **sayaç faturası dağıtımı** (tüketime / m²'ye / eşit; paylar toplam tutara kuruşu kuruşuna eşit)
 - **Operasyon:** görevler, destek talepleri, güvenlik & kargo (kargo/otopark/ziyaretçi), personel, stok, sayaçlar
-- **İletişim:** duyurular, anketler (daire başına tek oy), karar defteri, bildirimler, gecikmiş borç hatırlatıcı
+- **Ortak alan rezervasyonu:** çalışma saati ve çakışma kontrolü, saatlik ücretin daire borcuna yazılması, onay akışı; mobilden de yapılır
+- **İletişim:** duyurular, anketler (daire başına tek oy), karar defteri, bildirimler (isteğe bağlı e-posta ile), gecikmiş borç hatırlatıcı
+- **Toplantılar:** genel kurul / yönetim kurulu, gündem, hazirun (katılım + vekil) ve **toplantı yeter sayısı** (sayı ve arsa payı çoğunluğu), kararlar toplantıya bağlanır
+- **Belge arşivi:** sözleşme / fatura / tutanak yükleme (herkese açık olmayan depolama, yetkiyle indirme), geçerlilik tarihi uyarısı
+- **Yetkiler:** site bazında rol — yönetici (tam), muhasebeci (yalnızca finans kayıtları), izleyici (salt okunur)
+- **Üye geçmişi:** daireden ayrılan / devredilen sakinler silinmez, geçmiş listesinde tutulur
 - **Raporlar:** sakin listesi, hazirun cetveli, bakiye listesi, detaylı borç, vadesi geçmiş borçlar, tahsilat makbuzları — yazdır/PDF ve Excel (CSV)
 - **Kullanıcılar** ve **Emlak portföyü** (görselli ilanlar)
 
@@ -84,6 +94,8 @@ Muhasebe kuralları (avans mahsubu, tahsilat dağıtımı, mükerrer tahakkuk en
 | `GET /api/sites/{id}/announcements`, `/notifications` | Duyurular ve bildirimler; `POST .../notifications/{n}/read` |
 | `GET /api/sites/{id}/polls`, `POST .../polls/{p}/vote` | Anketler ve oy (`{option_id}`) |
 | `GET/POST /api/sites/{id}/tickets` | Destek talepleri |
+| `GET /api/sites/{id}/areas`, `/reservations`, `/meetings` | Ortak alanlar, rezervasyonlarım, toplantılar |
+| `POST /api/sites/{id}/reservations`, `DELETE .../reservations/{r}` | Rezervasyon yap (`{common_area_id, date, start_time, end_time}`) / iptal et |
 
 ## Next.js sürümünden farklar
 

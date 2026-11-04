@@ -247,8 +247,7 @@ class FinanceController extends Controller
         $from = $request->date('from')?->toDateString() ?? now()->startOfYear()->toDateString();
         $to = $request->date('to')?->toDateString() ?? today()->toDateString();
 
-        $rows = $apartment->cashTransactions()
-            ->where('cash_transactions.sub_type', 'not like', 'transfer%')
+        $rows = $apartment->cashTransactions()->operating()
             ->whereDate('cash_transactions.created_at', '>=', $from)->whereDate('cash_transactions.created_at', '<=', $to)
             ->leftJoin('transaction_categories as c', 'c.id', '=', 'cash_transactions.category_id')
             ->selectRaw('cash_transactions.type, cash_transactions.sub_type, c.name as category, SUM(cash_transactions.amount) total, COUNT(*) cnt')

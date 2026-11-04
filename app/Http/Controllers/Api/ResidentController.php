@@ -5,8 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Apartment;
 use App\Models\Debt;
+use App\Models\Meeting;
 use App\Models\Member;
 use App\Models\Poll;
+use App\Models\Reservation;
+use App\Services\FinanceException;
+use App\Services\ReservationService;
 use App\Models\SiteNotification;
 use App\Models\Ticket;
 use App\Models\Unit;
@@ -70,7 +74,7 @@ class ResidentController extends Controller
 
     public function payments(Request $request, Apartment $apartment)
     {
-        return response()->json($apartment->cashTransactions()->whereIn('unit_id', $this->units($request))
+        return response()->json($apartment->cashTransactions()->effective()->whereIn('unit_id', $this->units($request))
             ->where('type', 'income')->latest('id')->limit(100)->get()->map(fn ($t) => [
                 'id' => $t->id,
                 'date' => $t->created_at->toIso8601String(),
@@ -186,6 +190,69 @@ class ResidentController extends Controller
         ]);
 
         return response()->json($ticket, 201);
+    }
+
+    /** Rezervasyona açık ortak alanlar */
+    public function areas(Apartment $apartment)
+    {
+        return response()->json($apartment->commonAreas()->where('is_active', true)->orderBy('name')
+            ->get(['id', 'name', 'description', 'capacity', 'hourly_fee', 'open_time', 'close_time', 'requires_approval']));
+    }
+
+    /** Sakinin dairelerinin yakın geçmiş ve gelecek rezervasyonları */
+    public function reservations(Request $request, Apartment $apartment)
+    {
+        return response()->json($apartment->reservations()->whereIn('unit_id', $this->units($request))->with('area:id,name')
+            ->whereDate('date', '>=', today()->subDays(30))->orderByDesc('date')->get()->map(fn (Reservation $r) => [
+                'id' => $r->id, 'area' => $r->area->name, 'date' => $r->date->toDateString(), 'start_time' => $r->start_time,
+                'end_time' => $r->end_time, 'status' => $r->status, 'fee' => (float) $r->fee, 'can_cancel' => $r->isUpcoming(),
+            ]));
+    }
+
+    public function storeReservation(Request $request, Apartment $apartment, ReservationService $service)
+    {
+        $units = $this->units($request);
+        $data = $request->validate([
+            'common_area_id' => ['required', Rule::exists('common_areas', 'id')->where('apartment_id', $apartment->id)],
+            'unit_id' => ['nullable', Rule::in($units)],
+            'date' => ['required', 'date', 'after_or_equal:today'],
+            'start_time' => ['required', 'date_format:H:i'],
+            'end_time' => ['required', 'date_format:H:i'],
+            'note' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        try {
+            $reservation = $service->book($apartment->commonAreas()->findOrFail($data['common_area_id']),
+                Unit::with('block')->findOrFail($data['unit_id'] ?? $units[0]), $data['date'], $data['start_time'], $data['end_time'],
+                $request->user(), $data['note'] ?? null);
+        } catch (FinanceException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['id' => $reservation->id, 'status' => $reservation->status, 'fee' => (float) $reservation->fee], 201);
+    }
+
+    public function cancelReservation(Request $request, Apartment $apartment, int $reservation, ReservationService $service)
+    {
+        $reservation = $apartment->reservations()->whereIn('unit_id', $this->units($request))->findOrFail($reservation);
+        if (! $reservation->isUpcoming()) {
+            return response()->json(['message' => 'Başlamış veya kapanmış rezervasyon iptal edilemez.'], 422);
+        }
+        try {
+            $service->cancel($reservation, $request->user());
+        } catch (FinanceException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    public function meetings(Apartment $apartment)
+    {
+        return response()->json($apartment->meetings()->where('status', '!=', 'cancelled')->orderByDesc('meets_at')->limit(30)->get()->map(fn ($m) => [
+            'id' => $m->id, 'title' => $m->title, 'type' => Meeting::TYPES[$m->type], 'meets_at' => $m->meets_at->toIso8601String(),
+            'location' => $m->location, 'agenda' => $m->agenda, 'status' => $m->status,
+        ]));
     }
 
     /** @return array<int,int> */

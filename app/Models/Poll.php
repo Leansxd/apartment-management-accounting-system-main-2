@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Poll extends Model
@@ -21,4 +22,6 @@ class Poll extends Model
     {
         return $this->is_active && (! $this->due_date || ! $this->due_date->copy()->endOfDay()->isPast());
     }
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

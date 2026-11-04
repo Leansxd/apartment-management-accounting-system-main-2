@@ -19,4 +19,6 @@ class Meter extends Model
 
     public function unit(): BelongsTo { return $this->belongsTo(Unit::class)->withTrashed(); }
     public function readings(): HasMany { return $this->hasMany(MeterReading::class); }
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

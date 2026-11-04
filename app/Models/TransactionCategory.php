@@ -3,8 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TransactionCategory extends Model
 {
     protected $guarded = ['id'];
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

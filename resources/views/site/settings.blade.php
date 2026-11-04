@@ -25,9 +25,18 @@
             @foreach ($apartment->managers as $m)
                 <li class="flex items-center justify-between px-5 py-2.5 text-sm">
                     <span>{{ $m->name }} <span class="text-slate-400">· {{ $m->email }}</span></span>
-                    @if ($isOwner && $m->id !== $apartment->owner_id)
-                        <form method="POST" action="{{ route('site.managers.destroy', [$apartment, $m]) }}">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Çıkar</button></form>
-                    @endif
+                    <span class="flex items-center gap-2">
+                        @if ($isOwner && $m->id !== $apartment->owner_id)
+                            <form method="POST" action="{{ route('site.managers.role', [$apartment, $m]) }}">
+                                @csrf @method('PATCH')
+                                <label class="sr-only" for="role-{{ $m->id }}">Rol</label>
+                                <select class="input !w-auto !py-1 text-xs" id="role-{{ $m->id }}" name="role" onchange="this.form.submit()">@foreach (\App\Models\Apartment::ROLES as $k => $v)<option value="{{ $k }}" @selected($m->pivot->role === $k)>{{ $v }}</option>@endforeach</select>
+                            </form>
+                            <form method="POST" action="{{ route('site.managers.destroy', [$apartment, $m]) }}">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Çıkar</button></form>
+                        @else
+                            <span class="badge badge-gray">{{ $m->id === $apartment->owner_id ? 'Site sahibi' : \App\Models\Apartment::ROLES[$m->pivot->role] }}</span>
+                        @endif
+                    </span>
                 </li>
             @endforeach
         </ul>
@@ -39,6 +48,8 @@
                     <option value="">Yönetici ekle…</option>
                     @foreach ($admins->whereNotIn('id', $apartment->managers->pluck('id')) as $a)<option value="{{ $a->id }}">{{ $a->name }} ({{ $a->email }})</option>@endforeach
                 </select>
+                <label class="sr-only" for="manager-role">Rol</label>
+                <select class="input !w-auto" id="manager-role" name="role">@foreach (\App\Models\Apartment::ROLES as $k => $v)<option value="{{ $k }}" @selected($k === 'manager')>{{ $v }}</option>@endforeach</select>
                 <button class="btn btn-primary">Ekle</button>
             </form>
         @endif

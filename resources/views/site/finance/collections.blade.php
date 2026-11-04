@@ -56,6 +56,6 @@
 
     <section class="card">
         <div class="card-head"><h2 class="card-title">Son tahsilatlar</h2><a class="text-xs text-brand-600" href="{{ route('site.reports.show', [$apartment, 'receipts']) }}">Makbuz listesi</a></div>
-        @include('site.finance._transactions', ['transactions' => $recent])
+        @include('site.finance._transactions', ['transactions' => $recent, 'actions' => true])
     </section>
 </x-layout>

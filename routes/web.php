@@ -1,12 +1,24 @@
 <?php
 
+use App\Http\Controllers\AccountingReportController;
+use App\Http\Controllers\AdvanceController;
 use App\Http\Controllers\ApartmentController;
+use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BankController;
+use App\Http\Controllers\BudgetController;
+use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\MeetingController;
+use App\Http\Controllers\MeterBillController;
+use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DebtActionController;
 use App\Http\Controllers\DuesController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\LateFeeController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\PropertyController;
@@ -42,13 +54,14 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::resource('properties', PropertyController::class)->except('show');
 
     // --- Siteye ait her şey: yetki kontrolü + kayıtların o siteye ait olduğu (scopeBindings) ---
-    Route::prefix('sites/{apartment}')->name('site.')->middleware('can:manage,apartment')->scopeBindings()->group(function () {
+    Route::prefix('sites/{apartment}')->name('site.')->middleware(['can:manage,apartment', 'site.role'])->scopeBindings()->group(function () {
         Route::get('/', [DashboardController::class, 'site'])->name('dashboard');
 
         // Ayarlar
         Route::get('/settings', [ApartmentController::class, 'edit'])->name('settings');
         Route::put('/settings', [ApartmentController::class, 'update'])->name('settings.update');
         Route::post('/managers', [ApartmentController::class, 'addManager'])->name('managers.store');
+        Route::patch('/managers/{user}/role', [ApartmentController::class, 'updateManagerRole'])->name('managers.role')->withoutScopedBindings();
         Route::delete('/managers/{user}', [ApartmentController::class, 'removeManager'])->name('managers.destroy')->withoutScopedBindings();
         Route::post('/reset', [ApartmentController::class, 'reset'])->name('reset');
         Route::delete('/', [ApartmentController::class, 'destroy'])->name('destroy');
@@ -67,6 +80,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
         // Üyeler (sakinler)
         Route::get('/members', [MemberController::class, 'index'])->name('members.index');
+        Route::get('/member-history', [MemberController::class, 'history'])->name('members.history');
         Route::post('/members', [MemberController::class, 'store'])->name('members.store');
         Route::get('/members/{member}', [MemberController::class, 'show'])->name('members.show');
         Route::put('/members/{member}', [MemberController::class, 'update'])->name('members.update');
@@ -79,6 +93,64 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/debts', [FinanceController::class, 'debts'])->name('debts.index');
         Route::post('/debts', [FinanceController::class, 'storeDebt'])->name('debts.store');
         Route::delete('/debts/{debt}', [FinanceController::class, 'destroyDebt'])->name('debts.destroy');
+        Route::post('/debts/{debt}/installments', [DebtActionController::class, 'installments'])->name('debts.installments');
+        Route::post('/debts/{debt}/legal', [DebtActionController::class, 'legal'])->name('debts.legal');
+        // Banka ekstresi, bütçe, mali raporlar
+        Route::get('/bank', [BankController::class, 'index'])->name('bank.index');
+        Route::post('/bank/import', [BankController::class, 'import'])->name('bank.import');
+        Route::post('/bank/post-matched', [BankController::class, 'postMatched'])->name('bank.post-matched');
+        Route::delete('/bank/batch', [BankController::class, 'destroyBatch'])->name('bank.batch');
+        Route::patch('/bank/{bankLine}/assign', [BankController::class, 'assign'])->name('bank.assign');
+        Route::post('/bank/{bankLine}/post', [BankController::class, 'post'])->name('bank.post');
+        Route::patch('/bank/{bankLine}/ignore', [BankController::class, 'ignore'])->name('bank.ignore');
+        Route::get('/budget', [BudgetController::class, 'index'])->name('budget.index');
+        Route::post('/budget', [BudgetController::class, 'save'])->name('budget.save');
+        Route::post('/budget/copy', [BudgetController::class, 'copy'])->name('budget.copy');
+        Route::get('/accounting/trial-balance', [AccountingReportController::class, 'trialBalance'])->name('accounting.trial-balance');
+        Route::get('/accounting/cash-book', [AccountingReportController::class, 'cashBook'])->name('accounting.cash-book');
+        Route::get('/accounting/balance-sheet', [AccountingReportController::class, 'balanceSheet'])->name('accounting.balance-sheet');
+        Route::get('/accounting/aging', [AccountingReportController::class, 'aging'])->name('accounting.aging');
+
+        // Bordro, demirbaş, sayaç faturası
+        Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll.index');
+        Route::post('/payroll', [PayrollController::class, 'generate'])->name('payroll.generate');
+        Route::get('/assets', [AssetController::class, 'index'])->name('assets.index');
+        Route::post('/assets', [AssetController::class, 'store'])->name('assets.store');
+        Route::put('/assets/{asset}', [AssetController::class, 'update'])->name('assets.update');
+        Route::post('/assets/{asset}/dispose', [AssetController::class, 'dispose'])->name('assets.dispose');
+        Route::delete('/assets/{asset}', [AssetController::class, 'destroy'])->name('assets.destroy');
+        Route::get('/meter-bills', [MeterBillController::class, 'index'])->name('meter-bills.index');
+        Route::post('/meter-bills', [MeterBillController::class, 'store'])->name('meter-bills.store');
+
+        // Rezervasyon, toplantı, belge arşivi
+        Route::get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
+        Route::post('/reservations', [ReservationController::class, 'store'])->name('reservations.store');
+        Route::post('/reservations/{reservation}/approve', [ReservationController::class, 'approve'])->name('reservations.approve');
+        Route::post('/reservations/{reservation}/reject', [ReservationController::class, 'reject'])->name('reservations.reject');
+        Route::post('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])->name('reservations.cancel');
+        Route::post('/areas', [ReservationController::class, 'storeArea'])->name('areas.store');
+        Route::put('/areas/{commonArea}', [ReservationController::class, 'updateArea'])->name('areas.update');
+        Route::delete('/areas/{commonArea}', [ReservationController::class, 'destroyArea'])->name('areas.destroy');
+        Route::get('/meetings', [MeetingController::class, 'index'])->name('meetings.index');
+        Route::post('/meetings', [MeetingController::class, 'store'])->name('meetings.store');
+        Route::get('/meetings/{meeting}', [MeetingController::class, 'show'])->name('meetings.show');
+        Route::put('/meetings/{meeting}', [MeetingController::class, 'update'])->name('meetings.update');
+        Route::delete('/meetings/{meeting}', [MeetingController::class, 'destroy'])->name('meetings.destroy');
+        Route::post('/meetings/{meeting}/attendance', [MeetingController::class, 'saveAttendance'])->name('meetings.attendance');
+        Route::post('/meetings/{meeting}/decisions', [MeetingController::class, 'storeDecision'])->name('meetings.decisions');
+        Route::get('/documents', [DocumentController::class, 'index'])->name('documents.index');
+        Route::post('/documents', [DocumentController::class, 'store'])->name('documents.store');
+        Route::get('/documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
+        Route::delete('/documents/{document}', [DocumentController::class, 'destroy'])->name('documents.destroy');
+
+        Route::get('/late-fees', [LateFeeController::class, 'index'])->name('late-fees.index');
+        Route::put('/late-fees/settings', [LateFeeController::class, 'settings'])->name('late-fees.settings');
+        Route::post('/late-fees', [LateFeeController::class, 'run'])->name('late-fees.run');
+        Route::get('/advances', [AdvanceController::class, 'index'])->name('advances.index');
+        Route::post('/advances/{unit}/apply', [AdvanceController::class, 'apply'])->name('advances.apply');
+        Route::post('/advances/{unit}/refund', [AdvanceController::class, 'refund'])->name('advances.refund');
+        Route::post('/transactions/{cashTransaction}/reverse', [DebtActionController::class, 'reverse'])->name('transactions.reverse');
+        Route::get('/transactions/{cashTransaction}/receipt', [DebtActionController::class, 'receipt'])->name('transactions.receipt');
         Route::get('/collections', [FinanceController::class, 'collections'])->name('collections.index');
         Route::post('/collections', [FinanceController::class, 'collect'])->name('collections.store');
         Route::get('/cashboxes', [FinanceController::class, 'cashboxes'])->name('cashboxes.index');

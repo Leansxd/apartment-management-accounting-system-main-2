@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /** Karar defteri kaydı */
 class Decision extends Model
@@ -13,4 +14,6 @@ class Decision extends Model
     {
         return ['decided_on' => 'date'];
     }
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

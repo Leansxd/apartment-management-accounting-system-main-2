@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Announcement extends Model
 {
@@ -20,4 +21,6 @@ class Announcement extends Model
         $query->where('is_active', true)
             ->where(fn ($q) => $q->whereNull('expires_on')->orWhereDate('expires_on', '>=', today()));
     }
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

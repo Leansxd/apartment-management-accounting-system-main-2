@@ -13,11 +13,15 @@ class Apartment extends Model
 
     protected function casts(): array
     {
-        return ['allow_negative_cashbox' => 'boolean'];
+        return [
+            'allow_negative_cashbox' => 'boolean',
+            'late_fee_enabled' => 'boolean',
+            'late_fee_rate' => 'decimal:2',
+        ];
     }
 
     public function owner(): BelongsTo { return $this->belongsTo(User::class, 'owner_id'); }
-    public function managers(): BelongsToMany { return $this->belongsToMany(User::class, 'apartment_manager'); }
+    public function managers(): BelongsToMany { return $this->belongsToMany(User::class, 'apartment_manager')->withPivot('role'); }
 
     public function blocks(): HasMany { return $this->hasMany(Block::class); }
     public function units(): HasMany { return $this->hasMany(Unit::class); }
@@ -43,6 +47,26 @@ class Apartment extends Model
     public function polls(): HasMany { return $this->hasMany(Poll::class); }
     public function decisions(): HasMany { return $this->hasMany(Decision::class); }
     public function siteNotifications(): HasMany { return $this->hasMany(SiteNotification::class); }
+    public function bankLines(): HasMany { return $this->hasMany(BankStatementLine::class); }
+    public function budgetItems(): HasMany { return $this->hasMany(BudgetItem::class); }
+    public function assets(): HasMany { return $this->hasMany(Asset::class); }
+    public function meterBills(): HasMany { return $this->hasMany(MeterBill::class); }
+    public function commonAreas(): HasMany { return $this->hasMany(CommonArea::class); }
+    public function reservations(): HasMany { return $this->hasMany(Reservation::class); }
+    public function meetings(): HasMany { return $this->hasMany(Meeting::class); }
+    public function documents(): HasMany { return $this->hasMany(Document::class); }
+
+    public const ROLES = ['manager' => 'Yönetici (tam yetki)', 'accountant' => 'Muhasebeci (finans)', 'viewer' => 'İzleyici (salt okunur)'];
+
+    /** Kullanıcının bu sitedeki rolü: manager | accountant | viewer; erişimi yoksa null. */
+    public function roleOf(User $user): ?string
+    {
+        if ($user->is_super_admin || $this->owner_id === $user->id) {
+            return 'manager';
+        }
+
+        return $user->isAdmin() ? $this->managers()->whereKey($user->id)->first()?->pivot->role : null;
+    }
 
     /** Panel kullanıcısı bu apartmanı yönetebilir mi? (süper admin, sahip veya yönetici listesi) */
     public function isManagedBy(User $user): bool

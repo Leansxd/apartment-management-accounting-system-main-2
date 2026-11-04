@@ -16,4 +16,6 @@ class DebtPayment extends Model
     }
 
     public function debt(): BelongsTo { return $this->belongsTo(Debt::class); }
+
+    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
 }

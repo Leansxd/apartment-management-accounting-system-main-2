@@ -45,14 +45,15 @@ class AppServiceProvider extends ServiceProvider
         // $site: adresteki site; $currentSite: üst çubukta seçili konut (adresteki, yoksa oturumda hatırlanan, yoksa ilk site)
         View::composer('components.layout', function ($view) {
             $user = auth()->user();
-            $sites = $user?->accessibleApartments()->get(['id', 'name', 'code', 'owner_id']) ?? collect();
+            $sites = $user?->accessibleApartments()->get(['id', 'name', 'code', 'city', 'owner_id']) ?? collect();
             $site = request()->route('apartment');
             $site = $site instanceof Apartment ? $site : null;
             $current = $site ?? $sites->firstWhere('id', session('selected_site_id')) ?? $sites->first();
             if ($current && session('selected_site_id') !== $current->id) {
                 session(['selected_site_id' => $current->id]);
             }
-            $view->with(['sites' => $sites, 'site' => $site, 'currentSite' => $current]);
+            $openTickets = $current ? $current->tickets()->whereIn('status', ['open', 'in_progress'])->count() : 0;
+            $view->with(['sites' => $sites, 'site' => $site, 'currentSite' => $current, 'openTickets' => $openTickets]);
         });
     }
 }

@@ -69,6 +69,8 @@ class FinanceService
                     'status' => $remaining === 0 ? Debt::PAID : Debt::PENDING,
                     'distribution_id' => $fields['distribution_id'] ?? null,
                     'dues_definition_id' => $fields['dues_definition_id'] ?? null,
+                    'kind' => $fields['kind'] ?? 'due',
+                    'parent_debt_id' => $fields['parent_debt_id'] ?? null,
                     'idempotency_key' => $key,
                 ]);
 
@@ -210,13 +212,24 @@ class FinanceService
     {
         DB::transaction(function () use ($debt, $by) {
             $debt = Debt::whereKey($debt->id)->lockForUpdate()->firstOrFail();
-            $paid = Money::cents($debt->paid_amount);
-            if ($paid > 0) {
+            $payments = DebtPayment::where('debt_id', $debt->id)->get();
+            $cashPaid = $payments->where('type', 'collection')->sum(fn ($p) => Money::cents($p->amount));
+            if ($cashPaid > 0 || (Money::cents($debt->paid_amount) > 0 && $payments->isEmpty())) {
                 throw new FinanceException('Bu borca '.Money::format($debt->paid_amount)
-                    .' tahsilat / avans mahsubu yapılmış; silinemez.');
+                    .' tahsilat yapılmış; silmeden önce tahsilatı iptal edin.');
             }
             $amount = Money::cents($debt->amount);
             $label = $debt->unit?->label();
+
+            // Yalnızca avans mahsubu yapılmışsa avans daireye geri verilir
+            $usage = $payments->where('type', 'credit_usage')->sum(fn ($p) => Money::cents($p->amount));
+            if ($usage > 0) {
+                $this->adjustCredit($debt->unit_id, $usage);
+                $this->ledgerPair($debt->apartment_id, "debt:{$debt->id}", 'credit_usage_reversal',
+                    [LedgerEntry::UNIT, $debt->unit_id], [LedgerEntry::UNIT_ADVANCE, $debt->unit_id],
+                    $usage, "Avans mahsubu iptali: {$label}");
+                DebtPayment::where('debt_id', $debt->id)->delete();
+            }
 
             $this->ledgerPair($debt->apartment_id, "debt:{$debt->id}", 'accrual_reversal',
                 [LedgerEntry::INCOME, $debt->category_id], [LedgerEntry::UNIT, $debt->unit_id],
@@ -398,7 +411,7 @@ class FinanceService
             $out->update(['related_transaction_id' => $in->id]);
 
             $this->ledgerPair($from->apartment_id, "cash_tx:{$out->id}", 'transfer',
-                [$to->name, $to->id], [$from->name, $from->id], $amount, "Virman: {$desc}");
+                [LedgerEntry::CASH, $to->id], [LedgerEntry::CASH, $from->id], $amount, "Virman: {$desc}");
             $this->audit($from->apartment, $by, 'TRANSFER', 'FINANCE', "cash_tx:{$out->id}",
                 ['from' => $from->name, 'to' => $to->name, 'amount' => Money::decimal($amount)]);
         });
@@ -441,6 +454,294 @@ class FinanceService
             $this->audit($expense->apartment, $by, 'APPROVE_EXPENSE', 'EXPENSE', "expense:{$expense->id}",
                 ['cashbox' => $cashbox->name, 'amount' => Money::decimal($amount)]);
         });
+    }
+
+    // ----------------------------------------------------------------- GECİKME ZAMMI
+
+    /**
+     * Henüz yazılmamış gecikme zammı kalemleri. Her açık borç için, vadesinden (+ ek süre) sonra
+     * tamamlanan her ay bir kalem üretir: tutar = o anki kalan borç × aylık oran. Kalem anahtarı
+     * (borç + ay no) sabittir; aynı hesap tekrar çalıştırılsa mükerrer zam yazılmaz.
+     * Gecikme zammı borçlarına ayrıca zam işletilmez.
+     *
+     * @return Collection<int, array{debt: Debt, month: int, amount: int, key: string}>
+     */
+    public function pendingLateFees(Apartment $apartment, ?CarbonImmutable $asOf = null): Collection
+    {
+        $rate = (float) $apartment->late_fee_rate;
+        if (! $apartment->late_fee_enabled || $rate <= 0) {
+            return collect();
+        }
+        $asOf ??= CarbonImmutable::today();
+        $existing = Debt::where('apartment_id', $apartment->id)->where('kind', 'late_fee')
+            ->pluck('idempotency_key')->flip();
+
+        $items = collect();
+        $debts = $apartment->debts()->whereIn('kind', ['due', 'installment'])->where('status', Debt::PENDING)
+            ->whereDate('due_date', '<', $asOf)->with('unit.block')->orderBy('due_date')->get();
+        foreach ($debts as $debt) {
+            $start = CarbonImmutable::parse($debt->due_date)->addDays($apartment->late_fee_grace_days);
+            $months = $start->lt($asOf) ? (int) floor($start->diffInMonths($asOf)) : 0;
+            $amount = (int) round(Money::cents($debt->remaining_amount) * $rate / 100);
+            for ($n = 1; $n <= $months && $amount > 0; $n++) {
+                if (! $existing->has($key = "late:{$debt->id}:{$n}")) {
+                    $items->push(['debt' => $debt, 'month' => $n, 'amount' => $amount, 'key' => $key]);
+                }
+            }
+        }
+
+        return $items;
+    }
+
+    /** @return array{created: int, total: int} total kuruş */
+    public function runLateFees(Apartment $apartment, ?CarbonImmutable $asOf = null, ?User $by = null): array
+    {
+        $asOf ??= CarbonImmutable::today();
+        $items = $this->pendingLateFees($apartment, $asOf);
+        if ($items->isEmpty()) {
+            return ['created' => 0, 'total' => 0];
+        }
+        $category = $apartment->categories()->firstOrCreate(['name' => 'Gecikme Zammı', 'type' => 'income']);
+
+        $created = $total = 0;
+        foreach ($items as $item) {
+            /** @var Debt $debt */
+            $debt = $item['debt'];
+            $result = $this->accrue($debt->unit, [
+                'description' => "Gecikme zammı ({$item['month']}. ay): {$debt->description}",
+                'amount' => $item['amount'],
+                'due_date' => $asOf->toDateString(),
+                'period' => $asOf->format('Y-m'),
+                'category_id' => $category->id,
+                'category_name' => $category->name,
+                'kind' => 'late_fee',
+                'parent_debt_id' => $debt->id,
+            ], $item['key']);
+            if ($result === 'created') {
+                $created++;
+                $total += $item['amount'];
+            }
+        }
+        $this->audit($apartment, $by, 'LATE_FEES', 'DEBT', $asOf->toDateString(), ['created' => $created, 'total' => Money::decimal($total)]);
+
+        return ['created' => $created, 'total' => $total];
+    }
+
+    // ----------------------------------------------------------------- İPTAL, İADE, MAHSUP, TAKSİT
+
+    /**
+     * Kasa hareketini iptal eder: yalnızca ters kayıt atılır, hiçbir kayıt silinmez.
+     * Tahsilat iptalinde ödenen borçlar yeniden açılır ve avans geri alınır; gider ödemesi iptalinde
+     * gider tekrar onay bekler. Virmanlar iptal edilemez (ters virman yapılır).
+     */
+    public function reverse(CashTransaction $tx, string $reason, ?User $by = null): CashTransaction
+    {
+        return DB::transaction(function () use ($tx, $reason, $by) {
+            $tx = CashTransaction::whereKey($tx->id)->lockForUpdate()->firstOrFail();
+            if ($tx->isReversed() || $tx->sub_type === 'reversal') {
+                throw new FinanceException('Bu hareket zaten iptal edilmiş veya bir iptal kaydıdır.');
+            }
+            if ($tx->isTransfer()) {
+                throw new FinanceException('Virman iptal edilemez; ters yönde yeni bir virman yapın.');
+            }
+            $cashbox = Cashbox::whereKey($tx->cashbox_id)->lockForUpdate()->firstOrFail();
+            $amount = Money::cents($tx->amount);
+            $wasIncome = $tx->type === 'income';
+            if ($wasIncome) {
+                $this->assertCanPay($cashbox, $amount); // iptal, kasadan para çıkışıdır
+            }
+
+            match ($tx->sub_type) {
+                'collection', 'pos', 'advance' => $this->undoCollection($tx),
+                'invoice' => $this->undoExpense($tx),
+                'refund' => $this->adjustCredit($tx->unit_id, $amount),
+                default => null,
+            };
+
+            $cashbox->update(['balance' => Money::decimal(Money::cents($cashbox->balance) + ($wasIncome ? -$amount : $amount))]);
+            $reversal = CashTransaction::create([
+                'apartment_id' => $tx->apartment_id, 'cashbox_id' => $tx->cashbox_id,
+                'type' => $wasIncome ? 'expense' : 'income', 'sub_type' => 'reversal', 'amount' => Money::decimal($amount),
+                'unit_id' => $tx->unit_id, 'category_id' => $tx->category_id, 'expense_id' => $tx->expense_id,
+                'description' => "İptal: {$tx->description} — {$reason}", 'performed_by' => $by?->id,
+                'reversal_of_id' => $tx->id,
+            ]);
+            foreach (LedgerEntry::where('reference', "cash_tx:{$tx->id}")->get() as $entry) {
+                LedgerEntry::create([
+                    'apartment_id' => $entry->apartment_id, 'reference' => "cash_tx:{$reversal->id}", 'entry_type' => 'reversal',
+                    'account_name' => $entry->account_name, 'account_id' => $entry->account_id,
+                    'debit' => $entry->credit, 'credit' => $entry->debit, 'description' => mb_substr("İptal: {$entry->description}", 0, 250),
+                ]);
+            }
+            $tx->update(['reversed_at' => now(), 'reversed_by' => $by?->id, 'reversal_reason' => $reason]);
+            $this->audit($tx->apartment, $by, 'REVERSE_TRANSACTION', 'FINANCE', "cash_tx:{$tx->id}",
+                ['amount' => Money::decimal($amount), 'reason' => $reason, 'type' => $tx->sub_type]);
+
+            return $reversal;
+        });
+    }
+
+    private function undoCollection(CashTransaction $tx): void
+    {
+        $unit = Unit::whereKey($tx->unit_id)->lockForUpdate()->firstOrFail();
+        $toAdvance = Money::cents($tx->to_advance);
+        if ($toAdvance > 0 && Money::cents($unit->credit_balance) < $toAdvance) {
+            throw new FinanceException('Bu tahsilattan doğan avans başka bir borca mahsup edilmiş; önce o borcu iptal edin.');
+        }
+        foreach (DebtPayment::where('cash_transaction_id', $tx->id)->get() as $payment) {
+            $debt = Debt::whereKey($payment->debt_id)->lockForUpdate()->first();
+            if ($debt) {
+                $debt->update([
+                    'paid_amount' => Money::decimal(Money::cents($debt->paid_amount) - Money::cents($payment->amount)),
+                    'remaining_amount' => Money::decimal(Money::cents($debt->remaining_amount) + Money::cents($payment->amount)),
+                    'status' => Debt::PENDING,
+                ]);
+            }
+            $payment->delete();
+        }
+        if ($toAdvance > 0) {
+            $this->adjustCredit($unit->id, -$toAdvance);
+        }
+    }
+
+    private function undoExpense(CashTransaction $tx): void
+    {
+        Expense::whereKey($tx->expense_id)->update(['status' => 'pending', 'cashbox_id' => null, 'approved_by' => null, 'approved_at' => null]);
+    }
+
+    /** Dairenin avansını kuruş cinsinden artırır / azaltır (çağıran transaction içinde olmalıdır). */
+    private function adjustCredit(?int $unitId, int $cents): void
+    {
+        $unit = Unit::whereKey($unitId)->lockForUpdate()->firstOrFail();
+        $unit->update(['credit_balance' => Money::decimal(Money::cents($unit->credit_balance) + $cents)]);
+    }
+
+    /** Dairenin avansını kasadan geri öder. @param int $amount kuruş */
+    public function refundAdvance(Unit $unit, Cashbox $cashbox, int $amount, ?User $by = null): CashTransaction
+    {
+        if ($amount <= 0) {
+            throw new FinanceException('İade tutarı 0\'dan büyük olmalıdır.');
+        }
+        $this->assertSameApartment($unit->apartment_id, $cashbox);
+
+        return DB::transaction(function () use ($unit, $cashbox, $amount, $by) {
+            $unit = Unit::whereKey($unit->id)->lockForUpdate()->firstOrFail();
+            $cashbox = Cashbox::whereKey($cashbox->id)->lockForUpdate()->firstOrFail();
+            if ($amount > Money::cents($unit->credit_balance)) {
+                throw new FinanceException('İade tutarı dairenin avansını ('.Money::format($unit->credit_balance).') aşamaz.');
+            }
+            $this->assertCanPay($cashbox, $amount);
+
+            $unit->update(['credit_balance' => Money::decimal(Money::cents($unit->credit_balance) - $amount)]);
+            $cashbox->update(['balance' => Money::decimal(Money::cents($cashbox->balance) - $amount)]);
+            $tx = CashTransaction::create([
+                'apartment_id' => $unit->apartment_id, 'cashbox_id' => $cashbox->id, 'type' => 'expense', 'sub_type' => 'refund',
+                'amount' => Money::decimal($amount), 'unit_id' => $unit->id,
+                'description' => "Avans iadesi: {$unit->label()}", 'performed_by' => $by?->id,
+            ]);
+            $this->ledgerPair($unit->apartment_id, "cash_tx:{$tx->id}", 'refund',
+                [LedgerEntry::UNIT_ADVANCE, $unit->id], [LedgerEntry::CASH, $cashbox->id], $amount, "Avans iadesi: {$unit->label()}");
+            $this->audit($unit->apartment, $by, 'REFUND_ADVANCE', 'FINANCE', "cash_tx:{$tx->id}", ['unit' => $unit->label(), 'amount' => Money::decimal($amount)]);
+
+            return $tx;
+        });
+    }
+
+    /** Dairenin mevcut avansını açık borçlarına en eski vadeden başlayarak mahsup eder. @return int mahsup edilen kuruş */
+    public function applyAdvance(Unit $unit, ?User $by = null): int
+    {
+        return DB::transaction(function () use ($unit, $by) {
+            $unit = Unit::whereKey($unit->id)->lockForUpdate()->firstOrFail();
+            $credit = Money::cents($unit->credit_balance);
+            if ($credit <= 0) {
+                throw new FinanceException('Dairenin mahsup edilecek avansı yok.');
+            }
+            $used = 0;
+            foreach (Debt::where('unit_id', $unit->id)->where('status', Debt::PENDING)->orderBy('due_date')->orderBy('id')->lockForUpdate()->get() as $debt) {
+                $pay = min($credit - $used, Money::cents($debt->remaining_amount));
+                if ($pay <= 0) {
+                    continue;
+                }
+                $left = Money::cents($debt->remaining_amount) - $pay;
+                $debt->update([
+                    'remaining_amount' => Money::decimal($left),
+                    'paid_amount' => Money::decimal(Money::cents($debt->paid_amount) + $pay),
+                    'status' => $left === 0 ? Debt::PAID : Debt::PENDING,
+                ]);
+                DebtPayment::create(['apartment_id' => $unit->apartment_id, 'debt_id' => $debt->id, 'unit_id' => $unit->id,
+                    'type' => 'credit_usage', 'amount' => Money::decimal($pay)]);
+                $used += $pay;
+                if ($used >= $credit) {
+                    break;
+                }
+            }
+            if ($used === 0) {
+                throw new FinanceException('Dairenin açık borcu yok; avans mahsup edilemedi.');
+            }
+            $unit->update(['credit_balance' => Money::decimal($credit - $used)]);
+            $this->ledgerPair($unit->apartment_id, "unit:{$unit->id}", 'credit_usage',
+                [LedgerEntry::UNIT_ADVANCE, $unit->id], [LedgerEntry::UNIT, $unit->id], $used, "Avans mahsubu: {$unit->label()}");
+            $this->audit($unit->apartment, $by, 'APPLY_ADVANCE', 'FINANCE', "unit:{$unit->id}", ['unit' => $unit->label(), 'amount' => Money::decimal($used)]);
+
+            return $used;
+        });
+    }
+
+    /**
+     * Açık borcu taksitlendirir. Borcun ödenmemiş kısmı ters kayıtla kapatılır ve eşit (kuruşu
+     * tutan) taksitler olarak yeniden tahakkuk ettirilir. Ödenmiş kısım özgün borçta kalır.
+     *
+     * @return Collection<int, Debt> oluşan taksitler
+     */
+    public function installments(Debt $debt, int $count, string $firstDue, int $everyMonths = 1, ?User $by = null): Collection
+    {
+        if ($count < 2 || $count > 36) {
+            throw new FinanceException('Taksit sayısı 2 ile 36 arasında olmalıdır.');
+        }
+        if ($everyMonths < 1 || $everyMonths > 12) {
+            throw new FinanceException('Taksit aralığı 1 ile 12 ay arasında olmalıdır.');
+        }
+
+        return DB::transaction(function () use ($debt, $count, $firstDue, $everyMonths, $by) {
+            $debt = Debt::whereKey($debt->id)->lockForUpdate()->firstOrFail();
+            $remaining = Money::cents($debt->remaining_amount);
+            if ($debt->status !== Debt::PENDING || $remaining <= 0) {
+                throw new FinanceException('Yalnızca açık borç taksitlendirilebilir.');
+            }
+            $unit = $debt->unit;
+            $this->ledgerPair($debt->apartment_id, "debt:{$debt->id}", 'restructure',
+                [LedgerEntry::INCOME, $debt->category_id], [LedgerEntry::UNIT, $debt->unit_id],
+                $remaining, "Taksitlendirme: {$unit->label()} {$debt->description}");
+            $debt->update(['amount' => $debt->paid_amount, 'remaining_amount' => 0, 'status' => Debt::PAID,
+                'description' => "{$debt->description} (taksitlendirildi)"]);
+
+            $parts = Money::allocate($remaining, array_fill(1, $count, 1));
+            $first = CarbonImmutable::parse($firstDue);
+            $created = collect();
+            foreach ($parts as $i => $part) {
+                $this->accrue($unit, [
+                    'description' => "Taksit {$i}/{$count}: ".str_replace(' (taksitlendirildi)', '', $debt->description),
+                    'amount' => $part,
+                    'due_date' => $first->addMonthsNoOverflow(($i - 1) * $everyMonths)->toDateString(),
+                    'period' => $debt->period,
+                    'category_id' => $debt->category_id, 'category_name' => $debt->category_name,
+                    'kind' => 'installment', 'parent_debt_id' => $debt->id,
+                ], "inst:{$debt->id}:{$i}");
+            }
+            $this->audit($debt->apartment, $by, 'INSTALLMENTS', 'DEBT', "debt:{$debt->id}",
+                ['unit' => $unit->label(), 'amount' => Money::decimal($remaining), 'count' => $count]);
+
+            return Debt::where('parent_debt_id', $debt->id)->orderBy('due_date')->get();
+        });
+    }
+
+    /** Borcu icra / hukuki takip olarak işaretler veya işareti kaldırır. */
+    public function setLegal(Debt $debt, bool $on, ?string $note = null, ?User $by = null): void
+    {
+        $debt->update($on
+            ? ['legal_status' => 'icra', 'legal_note' => $note, 'legal_at' => today()]
+            : ['legal_status' => null, 'legal_note' => null, 'legal_at' => null]);
+        $this->audit($debt->apartment, $by, $on ? 'LEGAL_ON' : 'LEGAL_OFF', 'DEBT', "debt:{$debt->id}", ['note' => $note]);
     }
 
     // ----------------------------------------------------------------- YARDIMCILAR

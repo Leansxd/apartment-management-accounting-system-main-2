@@ -21,8 +21,7 @@ class ReportService
      */
     public function summary(Apartment $apartment, ?string $from = null, ?string $to = null): array
     {
-        $tx = $apartment->cashTransactions()
-            ->where('sub_type', 'not like', 'transfer%') // virman gelir/gider değildir
+        $tx = $apartment->cashTransactions()->operating() // iptaller ve virmanlar gelir/gider değildir
             ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
             ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to));
 
@@ -63,9 +62,8 @@ class ReportService
     public function monthly(Apartment $apartment, int $months = 6): array
     {
         $start = CarbonImmutable::now()->startOfMonth()->subMonths($months - 1);
-        $rows = $apartment->cashTransactions()
+        $rows = $apartment->cashTransactions()->operating()
             ->where('created_at', '>=', $start)
-            ->where('sub_type', 'not like', 'transfer%')
             ->get(['type', 'amount', 'created_at'])
             ->groupBy(fn ($t) => $t->created_at->format('Y-m'));
 
@@ -146,7 +144,7 @@ class ReportService
     {
         $debts = $unit->debts()->get();
         $payments = DB::table('debt_payments')->where('unit_id', $unit->id)->get();
-        $advances = $unit->cashTransactions()->where('type', 'income')->where('to_advance', '>', 0)->get();
+        $advances = $unit->cashTransactions()->effective()->where('type', 'income')->where('to_advance', '>', 0)->get();
 
         $lines = collect();
         foreach ($debts as $d) {

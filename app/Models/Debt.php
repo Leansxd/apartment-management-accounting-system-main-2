@@ -24,6 +24,7 @@ class Debt extends Model
     {
         return [
             'due_date' => 'date',
+            'legal_at' => 'date',
             'amount' => 'decimal:2',
             'paid_amount' => 'decimal:2',
             'remaining_amount' => 'decimal:2',

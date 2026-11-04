@@ -50,7 +50,9 @@
                 @forelse ($debts as $d)
                     <tr>
                         <td class="font-medium">{{ $d->unit->label() }}</td>
-                        <td>{{ $d->description }}</td>
+                        <td>{{ $d->description }}
+                            @if ($d->kind === 'late_fee')<span class="badge badge-amber ml-1">Gecikme zammı</span>@elseif ($d->kind === 'installment')<span class="badge badge-blue ml-1">Taksit</span>@endif
+                            @if ($d->legal_status)<span class="badge badge-red ml-1" title="{{ $d->legal_note }}">İcra</span>@endif</td>
                         <td>{{ $d->category_name }}</td>
                         <td class="whitespace-nowrap">{{ $d->due_date->format('d.m.Y') }}</td>
                         <td class="num">{{ tl($d->amount) }}</td>
@@ -59,6 +61,21 @@
                         <td class="text-right whitespace-nowrap">
                             @if ($d->status === 'pending')
                                 <a class="btn btn-secondary btn-sm" href="{{ route('site.collections.index', [$apartment, 'unit_id' => $d->unit_id, 'debt_id' => $d->id]) }}">Tahsil et</a>
+                                <details class="relative inline-block text-left">
+                                    <summary class="btn btn-secondary btn-sm">Taksitlendir</summary>
+                                    <form method="POST" action="{{ route('site.debts.installments', [$apartment, $d]) }}" class="absolute right-0 z-10 mt-1 w-72 card card-body space-y-2 shadow-lg">
+                                        @csrf
+                                        <p class="text-xs text-slate-500">Kalan {{ tl($d->remaining_amount) }} eşit taksitlere bölünür.</p>
+                                        <label class="label" for="ic-{{ $d->id }}">Taksit sayısı</label><input class="input" id="ic-{{ $d->id }}" type="number" name="count" min="2" max="36" value="3" required>
+                                        <label class="label" for="if-{{ $d->id }}">İlk taksit tarihi</label><input class="input" id="if-{{ $d->id }}" type="date" name="first_due" min="{{ today()->toDateString() }}" value="{{ today()->addMonth()->toDateString() }}" required>
+                                        <label class="label" for="ie-{{ $d->id }}">Aralık (ay)</label><input class="input" id="ie-{{ $d->id }}" type="number" name="every_months" min="1" max="12" value="1" required>
+                                        <button class="btn btn-primary w-full">Taksitlendir</button>
+                                    </form>
+                                </details>
+                                <form method="POST" action="{{ route('site.debts.legal', [$apartment, $d]) }}" class="inline" data-prompt-note="{{ $d->legal_status ? '' : 'İcra / dosya notu (isteğe bağlı):' }}">
+                                    @csrf<input type="hidden" name="note" value="">
+                                    <button class="btn btn-sm {{ $d->legal_status ? 'btn-secondary' : 'btn-danger' }}">{{ $d->legal_status ? 'İcrayı kaldır' : 'İcraya al' }}</button>
+                                </form>
                             @endif
                             @if ((float) $d->paid_amount === 0.0)
                                 <form method="POST" action="{{ route('site.debts.destroy', [$apartment, $d]) }}" class="inline" onsubmit="return confirm('Borç silinsin mi? (Ters yevmiye kaydı atılır)')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Sil</button></form>

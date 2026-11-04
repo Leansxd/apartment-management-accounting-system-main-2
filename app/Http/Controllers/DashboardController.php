@@ -3,49 +3,33 @@
 namespace App\Http\Controllers;
 
 use App\Models\Apartment;
-use App\Models\Property;
-use App\Models\Ticket;
-use App\Models\User;
-use App\Services\ReportService;
+use App\Services\DashboardService;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    /** Genel bakış: yönetilen siteler ve portföy özeti */
+    public function __construct(private DashboardService $dashboard)
+    {
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();
-        $siteIds = $user->accessibleApartments()->pluck('id');
+        $range = array_key_exists((string) $request->query('range'), DashboardService::RANGES) ? $request->query('range') : 'month';
+        $tab = in_array($request->query('tab'), ['admins', 'residents', 'super'], true) ? $request->query('tab') : null;
+        $sort = $request->query('sort') === 'name' ? 'name' : 'latest';
+        $search = trim((string) $request->query('q'));
 
-        return view('dashboard', [
-            'propertyCount' => Property::count(),
-            'userCount' => User::visibleTo($user)->count(),
-            'openTickets' => Ticket::whereIn('apartment_id', $siteIds)->whereIn('status', ['open', 'in_progress'])->count(),
-            'recentUsers' => User::visibleTo($user)->latest()->limit(5)->get(),
+        return view('dashboard', $this->dashboard->overview($user, $range) + [
+            'users' => $this->dashboard->users($user, $tab, $search ?: null, $sort)->limit(8)->get(),
+            'tab' => $tab, 'sort' => $sort, 'search' => $search,
         ]);
     }
 
-    /** Sitenin genel durumu (eski "Genel Durum" sekmesi) */
-    public function site(Request $request, Apartment $apartment, ReportService $reports)
+    public function site(Request $request, Apartment $apartment)
     {
-        $from = $request->date('from')?->toDateString();
-        $to = $request->date('to')?->toDateString();
+        $range = array_key_exists((string) $request->query('range'), DashboardService::RANGES) ? $request->query('range') : 'month';
 
-        return view('site.dashboard', [
-            'apartment' => $apartment,
-            'summary' => $reports->summary($apartment, $from, $to),
-            'performance' => $reports->collectionPerformance($apartment, $from, $to),
-            'monthly' => $reports->monthly($apartment),
-            'overdue' => $reports->overdueByUnit($apartment)->take(5),
-            'recent' => $apartment->cashTransactions()->with('cashbox', 'unit.block')->latest('id')->limit(8)->get(),
-            'counts' => [
-                'units' => $apartment->units()->count(),
-                'members' => $apartment->members()->count(),
-                'linked' => $apartment->members()->whereNotNull('user_id')->count(),
-                'tickets' => $apartment->tickets()->whereIn('status', ['open', 'in_progress'])->count(),
-            ],
-            'from' => $from,
-            'to' => $to,
-        ]);
+        return view('site.dashboard', $this->dashboard->site($apartment, $range) + ['apartment' => $apartment]);
     }
 }
