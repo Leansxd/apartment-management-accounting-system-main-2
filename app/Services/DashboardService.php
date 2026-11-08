@@ -19,7 +19,7 @@ use Illuminate\Support\Collection;
 
 class DashboardService
 {
-    public const RANGES = ['month' => 'Bu Hafta', 'quarter' => 'Geçen Hafta', 'year' => 'Bu Ay', 'all' => 'Bu Yıl'];
+    public const RANGES = ['month' => 'Son 30 Gün', 'quarter' => 'Son 3 Ay', 'year' => 'Bu Yıl', 'all' => 'Tüm Zamanlar'];
 
     private const ACTION_LABELS = [
         'COLLECTION' => 'Tahsilat alındı', 'DISTRIBUTE_DEBT' => 'Borç dağıtıldı', 'GENERATE_DUES' => 'Aidat üretildi',
@@ -31,9 +31,7 @@ class DashboardService
         'RESET_APARTMENT' => 'Site sıfırlandı', 'DELETE_EXPENSE' => 'Gider silindi',
     ];
 
-    public function __construct(private ReportService $reports, private AccountingReportService $accounting)
-    {
-    }
+    public function __construct(private ReportService $reports, private AccountingReportService $accounting) {}
 
     public function window(string $range): array
     {
@@ -42,7 +40,7 @@ class DashboardService
             'quarter' => $today->startOfMonth()->subMonths(2),
             'year' => $today->startOfYear(),
             'all' => null,
-            default => $today->startOfMonth(),
+            default => $today->subDays(29),
         };
         if (! $from) {
             return ['from' => null, 'to' => null, 'prevFrom' => null, 'prevTo' => null, 'label' => self::RANGES['all']];
@@ -62,40 +60,71 @@ class DashboardService
         $w = $this->window($range);
         $summary = $this->reports->summary($apartment, $w['from'], $w['to']);
         $prevSummary = $w['prevFrom'] ? $this->reports->summary($apartment, $w['prevFrom'], $w['prevTo']) : null;
-        if ($prevSummary && $prevSummary['income'] == 0.0 && $summary['income'] > 0) {
-            $prevSummary['income'] = round($summary['income'] * 0.968, 2);
-        }
-        if ($prevSummary && $prevSummary['expense'] == 0.0 && $summary['expense'] > 0) {
-            $prevSummary['expense'] = round($summary['expense'] * 0.959, 2);
-        }
-
         $performance = $this->reports->collectionPerformance($apartment, $w['from'], $w['to']);
         $prevPerformance = $w['prevFrom'] ? $this->reports->collectionPerformance($apartment, $w['prevFrom'], $w['prevTo']) : null;
-        if ($prevPerformance && $prevPerformance['rate'] == 0 && $performance['rate'] > 0) {
-            $prevPerformance['rate'] = round(max(10, $performance['rate'] - 6.2), 1);
-        }
 
         $rawMonthly = collect($this->reports->monthly($apartment, 12));
-        $lastSix = $this->normalizeSixBars($rawMonthly->slice(-6)->values(), max(20000, $summary['income']));
         $units = $apartment->units();
 
         return [
             'range' => $range, 'window' => $w,
             'summary' => $summary, 'prevSummary' => $prevSummary,
             'performance' => $performance, 'prevPerformance' => $prevPerformance,
-            'monthly' => $lastSix,
+            'monthly' => $rawMonthly->values()->all(),
+            'daily' => $this->dailyTimeline([$apartment->id]),
             'balanceHistory' => $this->balanceHistory($rawMonthly, $summary['balance']),
             'collectionState' => $this->collectionState($apartment->debts()),
             'funnel' => $this->funnel($apartment->debts(), $w['from'], $w['to']),
             'topDebtors' => $this->topDebtors($apartment),
-            'expenseByCategory' => $this->expenseByCategory($apartment, $w['from'], $w['to'], max(20000, $summary['income'])),
+            'expenseByCategory' => $this->expenseByCategory($apartment, $w['from'], $w['to']),
             'cashboxes' => $apartment->cashboxes()->orderBy('name')->get(['id', 'name', 'type', 'balance']),
             'occupancy' => [
+                'blocks' => $apartment->blocks()->count(),
+                'groups' => $apartment->unitGroups()->count(),
                 'units' => (clone $units)->count(),
                 'occupied' => (clone $units)->where('status', 'Dolu')->count(),
                 'members' => $apartment->members()->count(),
                 'linked' => $apartment->members()->whereNotNull('user_id')->count(),
                 'advances' => (float) (clone $units)->sum('credit_balance'),
+            ],
+            'modelCounts' => [
+                'blocks' => $apartment->blocks()->count(),
+                'units' => $apartment->units()->count(),
+                'unit_groups' => $apartment->unitGroups()->count(),
+                'members' => $apartment->members()->count(),
+                'dues' => $apartment->duesDefinitions()->count(),
+                'debts' => $apartment->debts()->count(),
+                'open_debts' => $apartment->debts()->where('status', Debt::PENDING)->count(),
+                'legal_debts' => $apartment->debts()->where('status', Debt::PENDING)->whereNotNull('legal_status')->count(),
+                'cashboxes' => $apartment->cashboxes()->count(),
+                'transactions' => $apartment->cashTransactions()->count(),
+                'bank_lines' => $apartment->bankLines()->count(),
+                'pending_bank' => $apartment->bankLines()->where('status', 'pending')->count(),
+                'ledger_entries' => $apartment->ledgerEntries()->count(),
+                'categories' => $apartment->categories()->count(),
+                'budget_items' => $apartment->budgetItems()->count(),
+                'expenses' => $apartment->expenses()->count(),
+                'pending_expenses' => $apartment->expenses()->where('status', 'pending')->count(),
+                'vendors' => $apartment->vendors()->count(),
+                'staff' => $apartment->staff()->count(),
+                'tasks' => $apartment->tasks()->count(),
+                'open_tasks' => $apartment->tasks()->where('status', '!=', 'completed')->count(),
+                'inventory' => $apartment->inventoryItems()->count(),
+                'assets' => $apartment->assets()->count(),
+                'meters' => $apartment->meters()->count(),
+                'meter_bills' => $apartment->meterBills()->count(),
+                'common_areas' => $apartment->commonAreas()->count(),
+                'reservations' => $apartment->reservations()->count(),
+                'security' => $apartment->securityEntries()->count(),
+                'tickets' => $apartment->tickets()->count(),
+                'open_tickets' => $apartment->tickets()->whereIn('status', ['open', 'in_progress'])->count(),
+                'meetings' => $apartment->meetings()->count(),
+                'decisions' => $apartment->decisions()->count(),
+                'announcements' => $apartment->announcements()->count(),
+                'polls' => $apartment->polls()->count(),
+                'notifications' => $apartment->siteNotifications()->count(),
+                'documents' => $apartment->documents()->count(),
+                'audit_logs' => $apartment->auditLogs()->count(),
             ],
             'attention' => $this->attention($apartment),
             'dueSoon' => (float) $apartment->debts()->where('status', Debt::PENDING)->whereBetween('due_date', [today(), today()->addDays(7)])->sum('remaining_amount'),
@@ -106,26 +135,29 @@ class DashboardService
         ];
     }
 
-    private function normalizeSixBars(Collection $bars, float $base): array
+    private function dailyTimeline(array $apartmentIds): array
     {
-        $weights = [0.54, 0.85, 1.00, 0.65, 1.00, 0.46];
-        $counts = [108, 170, 200, 130, 200, 92];
-        $loads = [54, 85, 96, 65, 98, 46];
-        $days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
-        $nonZero = $bars->filter(fn ($m) => ($m['income'] ?? 0) > 0)->count();
+        $start = CarbonImmutable::today()->subDays(29);
+        $txByDay = CashTransaction::whereIn('apartment_id', $apartmentIds)
+            ->operating()
+            ->where('type', 'income')
+            ->whereDate('created_at', '>=', $start->toDateString())
+            ->get(['amount', 'created_at'])
+            ->groupBy(fn ($t) => $t->created_at->toDateString());
 
-        return $bars->values()->map(function ($m, $i) use ($nonZero, $base, $weights, $counts, $loads, $days) {
-            $inc = (float) ($m['income'] ?? 0);
-            if ($nonZero < 3) {
-                $inc = round($base * ($weights[$i] ?? 0.6), 2);
-            }
+        $debtsByDay = Debt::whereIn('apartment_id', $apartmentIds)
+            ->whereDate('created_at', '>=', $start->toDateString())
+            ->get(['amount', 'created_at'])
+            ->groupBy(fn ($d) => $d->created_at->toDateString());
+
+        return collect(range(0, 29))->map(function ($i) use ($start, $txByDay, $debtsByDay) {
+            $day = $start->addDays($i);
+            $key = $day->toDateString();
+
             return [
-                'label' => $days[$i] ?? ($m['label'] ?? ''),
-                'full' => ($days[$i] ?? '').' · '.($m['full'] ?? $m['label'] ?? ''),
-                'income' => $inc,
-                'expense' => (float) ($m['expense'] ?? 0),
-                'count' => $counts[$i] ?? 120,
-                'load' => $loads[$i] ?? 75,
+                'label' => $day->locale('tr')->translatedFormat('j M'),
+                'paid' => (float) ($txByDay->get($key)?->sum('amount') ?? 0),
+                'invoiced' => (float) ($debtsByDay->get($key)?->sum('amount') ?? 0),
             ];
         })->all();
     }
@@ -148,11 +180,18 @@ class DashboardService
         $row = $debts->selectRaw('COALESCE(SUM(amount),0) accrued, COALESCE(SUM(paid_amount),0) collected')
             ->selectRaw('COALESCE(SUM(CASE WHEN status = ? AND due_date < ? THEN remaining_amount ELSE 0 END),0) overdue', [Debt::PENDING, $today])
             ->selectRaw('COALESCE(SUM(CASE WHEN status = ? AND due_date >= ? THEN remaining_amount ELSE 0 END),0) upcoming', [Debt::PENDING, $today])
+            ->selectRaw('COUNT(*) total_count, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) paid_count, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) pending_count', [Debt::PAID, Debt::PENDING])
             ->first();
         $accrued = (float) $row->accrued;
 
         return [
-            'accrued' => $accrued, 'collected' => (float) $row->collected, 'overdue' => (float) $row->overdue, 'upcoming' => (float) $row->upcoming,
+            'accrued' => $accrued,
+            'collected' => (float) $row->collected,
+            'overdue' => (float) $row->overdue,
+            'upcoming' => (float) $row->upcoming,
+            'total_count' => (int) ($row->total_count ?? 0),
+            'paid_count' => (int) ($row->paid_count ?? 0),
+            'pending_count' => (int) ($row->pending_count ?? 0),
             'rate' => $accrued > 0 ? round($row->collected / $accrued * 100, 1) : 0.0,
         ];
     }
@@ -175,36 +214,13 @@ class DashboardService
             ->groupBy('unit_id')->orderByDesc('total')->limit(6)->get();
         $units = $apartment->units()->withTrashed()->with('block', 'members')->whereIn('id', $rows->pluck('unit_id'))->get()->keyBy('id');
 
-        $list = $rows->values()->map(fn ($r, $idx) => [
+        return $rows->values()->map(fn ($r) => [
             'label' => $units[$r->unit_id]?->label() ?? '—',
             'sub' => $units[$r->unit_id]?->members->first()?->full_name ?? $r->cnt.' borç',
-            'role' => 'Daire '.($units[$r->unit_id]?->label() ?? 'Sakin'),
             'value' => (float) $r->total,
-            'count' => (int) $r->cnt * 12 + 14,
-            'rate' => ['4.8', '4.6', '4.7', '4.5', '4.9', '4.6'][$idx % 6],
+            'count' => (int) $r->cnt,
             'href' => route('site.collections.index', [$apartment, 'unit_id' => $r->unit_id]),
         ]);
-
-        if ($list->count() < 4) {
-            foreach ($apartment->members()->with('unit.block')->limit(4)->get() as $idx => $m) {
-                if ($list->count() >= 4) {
-                    break;
-                }
-                if (! $list->contains('sub', $m->full_name)) {
-                    $list->push([
-                        'label' => $m->unit?->label() ?? 'A-1',
-                        'sub' => $m->full_name,
-                        'role' => 'Daire '.($m->unit?->label() ?? 'A-1'),
-                        'value' => (float) (3600 + $idx * 1200),
-                        'count' => 18 + $idx * 6,
-                        'rate' => '4.6',
-                        'href' => route('site.members.show', [$apartment, $m]),
-                    ]);
-                }
-            }
-        }
-
-        return $list;
     }
 
     private function attention(Apartment $apartment): array
@@ -223,31 +239,34 @@ class DashboardService
         ];
     }
 
-    private function expenseByCategory(Apartment $apartment, ?string $from, ?string $to, float $baseTotal): Collection
+    private function expenseByCategory(Apartment $apartment, ?string $from, ?string $to): Collection
     {
         $rows = $apartment->cashTransactions()->operating()->where('cash_transactions.type', 'expense')
             ->when($from, fn ($q) => $q->whereDate('cash_transactions.created_at', '>=', $from))
             ->when($to, fn ($q) => $q->whereDate('cash_transactions.created_at', '<=', $to))
             ->leftJoin('transaction_categories as c', 'c.id', '=', 'cash_transactions.category_id')
-            ->selectRaw("COALESCE(c.name, 'Temizlik & Bakım') as name, SUM(cash_transactions.amount) as total")
+            ->selectRaw("COALESCE(c.name, 'Genel Gider') as name, SUM(cash_transactions.amount) as total")
             ->groupBy('c.name')->orderByDesc('total')->get()
             ->map(fn ($r) => ['label' => $r->name, 'value' => (float) $r->total]);
-
-        if ($rows->count() < 6) {
-            return collect([
-                ['label' => 'Aidat Tahsilatları', 'value' => round($baseTotal * 0.34, 2), 'pct' => 34],
-                ['label' => 'Personel & Bordro', 'value' => round($baseTotal * 0.22, 2), 'pct' => 22],
-                ['label' => 'Bakım & Onarım', 'value' => round($baseTotal * 0.18, 2), 'pct' => 18],
-                ['label' => 'Temizlik Programı', 'value' => round($baseTotal * 0.12, 2), 'pct' => 12],
-                ['label' => 'Sigorta & Güvenlik', 'value' => round($baseTotal * 0.08, 2), 'pct' => 8],
-                ['label' => 'Diğer', 'value' => round($baseTotal * 0.06, 2), 'pct' => 6],
-            ]);
-        }
 
         $top = $rows->take(5)->values();
         $rest = (float) $rows->slice(5)->sum('value');
 
-        return $top->push(['label' => 'Diğer', 'value' => $rest]);
+        return $rest > 0 ? $top->push(['label' => 'Diğer', 'value' => $rest]) : $top;
+    }
+
+    public function classicHud(Apartment $apartment): array
+    {
+        return [
+            'summary' => $this->reports->summary($apartment),
+            'collection' => $this->reports->collectionPerformance($apartment),
+            'monthly' => $this->reports->monthly($apartment, 12),
+            'cashboxes' => $apartment->cashboxes()->orderBy('name')->get(),
+            'recentExpenses' => $apartment->expenses()->with('vendor')->latest('id')->limit(8)->get(),
+            'recentIncomes' => $apartment->cashTransactions()->with('unit.block')->where('type', 'income')->latest('id')->limit(8)->get(),
+            'units' => $apartment->units()->with(['block', 'members'])->get(),
+            'incomeCategories' => $apartment->categories()->where('type', 'income')->get(),
+        ];
     }
 
     public function overview(User $user, string $range = 'month'): array
@@ -279,35 +298,16 @@ class DashboardService
             ];
         });
         $balance = (float) $sites->sum('balance');
-        $now = $rawMonthly->last();
-        $prev = $rawMonthly->slice(-2, 1)->first();
-        if (($prev['income'] ?? 0) == 0.0 && ($now['income'] ?? 0) > 0) {
-            $prev['income'] = round($now['income'] * 0.968, 2);
-        }
-        if (($prev['expense'] ?? 0) == 0.0 && ($now['expense'] ?? 0) > 0) {
-            $prev['expense'] = round($now['expense'] * 0.959, 2);
-        }
-
         $state = $this->collectionState(Debt::whereIn('apartment_id', $ids));
-        $baseTotal = max(20000, $now['income'] ?: $balance);
-
-        $sources = collect([
-            ['label' => 'Aidat Tahsilatları', 'value' => round($baseTotal * 0.34, 2), 'pct' => 34],
-            ['label' => 'Ortak Alan Geliri', 'value' => round($baseTotal * 0.22, 2), 'pct' => 22],
-            ['label' => 'Operasyon & Bakım', 'value' => round($baseTotal * 0.18, 2), 'pct' => 18],
-            ['label' => 'Sayaç & Enerji Payı', 'value' => round($baseTotal * 0.12, 2), 'pct' => 12],
-            ['label' => 'Sigorta & Güvence', 'value' => round($baseTotal * 0.08, 2), 'pct' => 8],
-            ['label' => 'Diğer', 'value' => round($baseTotal * 0.06, 2), 'pct' => 6],
-        ]);
 
         return [
             'range' => $range, 'window' => $w,
             'sites' => $sites,
-            'monthly' => $this->normalizeSixBars($rawMonthly->slice(-6)->values(), $baseTotal),
+            'monthly' => $rawMonthly->values()->all(),
+            'daily' => $this->dailyTimeline($ids),
             'balanceHistory' => $this->balanceHistory($rawMonthly, $balance),
-            'now' => $now, 'prev' => $prev,
+            'now' => $rawMonthly->last(), 'prev' => $rawMonthly->slice(-2, 1)->first(),
             'collectionState' => $state,
-            'sources' => $sources,
             'totals' => [
                 'balance' => $balance, 'receivables' => (float) $sites->sum('receivables'), 'overdue' => (float) $sites->sum('overdue'),
                 'units' => (int) $sites->sum('units_count'), 'members' => (int) $sites->sum('members_count'),
@@ -318,6 +318,13 @@ class DashboardService
                 'tickets' => Ticket::whereIn('apartment_id', $ids)->whereIn('status', ['open', 'in_progress'])->count(),
                 'tickets_urgent' => Ticket::whereIn('apartment_id', $ids)->whereIn('status', ['open', 'in_progress'])->where('priority', 'high')->count(),
                 'sites' => $sites->count(),
+                'debts' => Debt::whereIn('apartment_id', $ids)->count(),
+                'transactions' => CashTransaction::whereIn('apartment_id', $ids)->count(),
+                'expenses' => Expense::whereIn('apartment_id', $ids)->count(),
+                'bank_lines' => BankStatementLine::whereIn('apartment_id', $ids)->count(),
+                'inventory' => InventoryItem::whereIn('apartment_id', $ids)->count(),
+                'reservations' => Reservation::whereIn('apartment_id', $ids)->count(),
+                'audits' => AuditLog::whereIn('apartment_id', $ids)->count(),
             ],
             'attention' => [
                 ['Onay bekleyen gider', Expense::whereIn('apartment_id', $ids)->where('status', 'pending')->count(), 'receipt', 'amber'],

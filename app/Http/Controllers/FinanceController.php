@@ -17,9 +17,7 @@ class FinanceController extends Controller
 {
     private const AMOUNT = ['required', 'numeric', 'min:0.01', 'max:999999999'];
 
-    public function __construct(private FinanceService $finance)
-    {
-    }
+    public function __construct(private FinanceService $finance) {}
 
     public function overview(Request $request, Apartment $apartment, ReportService $reports)
     {
@@ -159,7 +157,7 @@ class FinanceController extends Controller
         ]);
     }
 
-    /** Yeni kasa. Açılış bakiyesi kayıt dışı kalmasın diye gelir hareketi olarak işlenir. */
+    /** Yeni kasa. Açılış bakiyesi kasaya işlenir ama dönemin geliri sayılmaz. */
     public function storeCashbox(Request $request, Apartment $apartment)
     {
         $data = $request->validate([
@@ -174,7 +172,7 @@ class FinanceController extends Controller
                 'name' => $data['name'], 'type' => $data['type'], 'account_number' => $data['account_number'] ?? null,
             ]);
             if (($opening = $this->cents($data['opening_balance'] ?? 0)) > 0) {
-                $this->finance->generalTransaction($box, 'income', $opening, 'Açılış bakiyesi', null, $request->user());
+                $this->finance->recordOpeningBalance($box, $opening, $request->user());
             }
         }, 'Kasa oluşturuldu.');
     }

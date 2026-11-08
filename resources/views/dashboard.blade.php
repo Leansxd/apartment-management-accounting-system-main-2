@@ -1,282 +1,282 @@
 @php
-    $prevBalance = $balanceHistory[count($balanceHistory) - 2]['value'] ?? ($totals['balance'] * 0.92);
-    $months = collect($monthly)->map(fn ($m) => [
-        'label' => $m['label'],
-        'full' => $m['full'] ?? $m['label'],
-        'value' => $m['income'],
-        'count' => $m['count'] ?? 160,
-        'load' => $m['load'] ?? 82,
-    ])->all();
-    $markers = ['bg-[#6e5ce0]', 'bg-[#10b981]', 'bg-[#0ea5e9]', 'bg-[#f97316]', 'bg-[#06b6d4]'];
-    $sourceTotal = max(0.01, (float) $sources->sum('value'));
-    $volume = max(1020, $totals['units'] * 85);
-    $perUnit = $totals['units'] > 0 ? round(max(2850, $now['income']) / $totals['units'], 2) : 285.0;
-
-    $cards = $sites->values()->map(function ($site, $idx) {
-        $rate = $site->accrued > 0 ? round($site->collected / $site->accrued * 100, 1) : 85.0;
-        return [
-            'name' => $site->name,
-            'role' => ($site->city ?: 'Merkez').' · '.$site->code,
-            'count' => max(18, $site->units_count * 3),
-            'value' => max(5400, (float) $site->balance),
-            'score' => number_format(min(4.9, 4.4 + ($idx % 4) * 0.1), 1),
-            'href' => route('site.dashboard', $site),
-        ];
-    })->all();
-
-    $fallbackCards = [
-        ['name' => 'Alisha Richards', 'role' => 'A Blok Yöneticisi', 'count' => 38, 'value' => 9800, 'score' => '4.6', 'href' => route('sites.index')],
-        ['name' => 'Andrew Piterson', 'role' => 'Finans & Muhasebe', 'count' => 22, 'value' => 6600, 'score' => '4.6', 'href' => route('sites.index')],
-        ['name' => 'Maria Weber', 'role' => 'Teknik Operasyon', 'count' => 18, 'value' => 5400, 'score' => '4.6', 'href' => route('sites.index')],
-        ['name' => 'Kemal Arslan', 'role' => 'Güvenlik & İdari', 'count' => 26, 'value' => 7200, 'score' => '4.8', 'href' => route('sites.index')],
-    ];
-    foreach ($fallbackCards as $fc) {
-        if (count($cards) >= 4) {
-            break;
-        }
-        $cards[] = $fc;
-    }
-
-    $depts = [
-        ['title' => 'Aidat & Finans Yönetimi', 'earned' => max(68000, $collectionState['collected']), 'util' => 80, 'pct' => 54, 'href' => route('sites.index')],
-        ['title' => 'Teknik Bakım & Cerrahi', 'earned' => max(74800, $totals['balance']), 'util' => 84, 'pct' => 72, 'href' => route('sites.index')],
-        ['title' => 'Konut & Portföy Yönetimi', 'earned' => 61200, 'util' => 89, 'pct' => 84, 'href' => route('properties.index')],
-    ];
-
+    $paidRatio = ($collectionState['paid_count'] ?? 0).' / '.($collectionState['total_count'] ?? 0);
     $firstSite = $sites->first();
-    $siteUrl = fn (string $r) => $firstSite ? route($r, $firstSite) : route('sites.index');
-    $alerts = [
-        ['title' => 'Onay Bekleyen Giderler', 'sub' => ($attention[0][1] ?: 2).' satın alma talebi bekliyor', 'btn' => 'Onayla', 'tone' => 'amber', 'href' => $siteUrl('site.expenses.index')],
-        ['title' => 'Banka Mutabakat Satırları', 'sub' => 'Tedarikçi: Merkez Bankası', 'btn' => 'İncele', 'tone' => 'amber', 'href' => $siteUrl('site.bank.index')],
-        ['title' => 'İcra Takibindeki Dosyalar', 'sub' => 'Hukuk Departmanı', 'btn' => 'İncele', 'tone' => 'red', 'href' => $siteUrl('site.debts.index')],
-        ['title' => 'Dezenfektan & Temizlik Stoğu', 'sub' => ($attention[4][1] ?: 8).' birim kaldı', 'btn' => 'Yenile', 'tone' => 'red', 'href' => $siteUrl('site.inventory.index')],
-        ['title' => 'Aidat Tahsilat Güncellemesi', 'sub' => 'Tahsilat güncellendi: '.tl($collectionState['collected']), 'btn' => 'İncele', 'tone' => 'green', 'href' => $siteUrl('site.collections.index')],
-        ['title' => 'Ortak Alan Rezervasyonları', 'sub' => ($attention[3][1] ?: 2).' onay bekleyen talep', 'btn' => 'İncele', 'tone' => 'amber', 'href' => $siteUrl('site.reservations.index')],
-    ];
-    $alertTones = [
-        'amber' => 'bg-amber-50 text-amber-500',
-        'red' => 'bg-rose-50 text-rose-500',
-        'green' => 'bg-emerald-50 text-emerald-500',
+    $sRoute = fn (string $name) => $firstSite ? route($name, $firstSite) : route('sites.index');
+    $newHref = $sRoute('site.debts.index');
+    $siteUnitRatio = ($counts['sites'] ?? 0).' site / '.($totals['units'] ?? 0).' daire';
+
+    $portfolioModules = [
+        [
+            'title' => 'Portföy, Yapı & Sakin Modelleri',
+            'desc' => 'Apartment · Block · Unit · UnitGroup · Member · Property',
+            'icon' => 'building-2',
+            'items' => [
+                ['Konut & Site Yönetimi', 'Apartment · Çoklu site yetkisi', ($counts['sites'] ?? 0).' aktif site', route('sites.index'), 'building'],
+                ['Blok, Daire & Gruplar', 'Block · Unit · UnitGroup', ($totals['units'] ?? 0).' bağımsız bölüm', $sRoute('site.units.index'), 'building-2'],
+                ['Sakin & Üye Kayıtları', 'Member · Davet kodu & Portal', ($totals['members'] ?? 0).' sakin', $sRoute('site.members.index'), 'users'],
+                ['Sistem Kullanıcıları & Roller', 'User · Admin / Muhasebe / Sakin', ($counts['users'] ?? 0).' kullanıcı', route('users.index'), 'user-plus'],
+                ['Emlak Portföyü', 'Property · Kiralık / Satılık', ($counts['properties'] ?? 0).' portföy kaydı', route('properties.index'), 'home'],
+            ],
+        ],
+        [
+            'title' => 'Tahakkuk, Aidat & Sayaç Modelleri',
+            'desc' => 'DuesDefinition · Debt · Meter · MeterReading · MeterBill',
+            'icon' => 'file-text',
+            'items' => [
+                ['Aidat Tanımları & Otomasyon', 'DuesDefinition · Aylık tahakkuk', 'Otomatik aidat', $sRoute('site.dues.index'), 'filter'],
+                ['Borçlandırma, Taksit & İcra', 'Debt · Açık alacak & İcra takibi', ($counts['debts'] ?? 0).' tahakkuk kaydı', $sRoute('site.debts.index'), 'circle-dollar-sign'],
+                ['Gecikme Zammı Hesaplama', 'Otomatik vade farkı motoru', 'Vade kontrolü', $sRoute('site.late-fees.index'), 'flame'],
+                ['Sayaç & Endeks Okuma', 'Meter · MeterReading', 'Sıcak su / doğalgaz', $sRoute('site.meters.index'), 'zap'],
+                ['Sayaç Faturası Dağıtımı', 'MeterBill · Pay ölçer dağıtımı', 'Fatura paylaştırma', $sRoute('site.meter-bills.index'), 'receipt'],
+            ],
+        ],
+        [
+            'title' => 'Tahsilat, Kasa & Banka Modelleri',
+            'desc' => 'Cashbox · CashTransaction · DebtPayment · BankStatementLine',
+            'icon' => 'wallet',
+            'items' => [
+                ['Tahsilat & Makbuz Kesimi', 'DebtPayment · CashTransaction', ($collectionState['paid_count'] ?? 0).' ödenen kayıt', $sRoute('site.collections.index'), 'hand-coins'],
+                ['Kasa & Banka Hesapları', 'Cashbox · Virman & Hareketler', tl($totals['balance'] ?? 0).' toplam', $sRoute('site.cashboxes.index'), 'wallet'],
+                ['Banka Ekstresi Eşleştirme', 'BankStatementLine · CSV içe aktarım', ($counts['bank_lines'] ?? 0).' banka satırı', $sRoute('site.bank.index'), 'landmark'],
+                ['Avans & Kredi Mahsup', 'Unit kredi bakiyesi mahsubu', 'Avans yönetimi', $sRoute('site.advances.index'), 'credit-card'],
+                ['Muhasebe, Defter & Bütçe', 'LedgerEntry · Mizan · Bilanço · BudgetItem', ($counts['transactions'] ?? 0).' hareket', $sRoute('site.ledger'), 'database'],
+            ],
+        ],
+        [
+            'title' => 'Operasyon, Gider, Kurul & Denetim',
+            'desc' => 'Expense · Vendor · Staff · Task · Ticket · Meeting · AuditLog',
+            'icon' => 'package',
+            'items' => [
+                ['Gider, Tedarikçi & Bordro', 'Expense · Vendor · Staff · Payroll', ($counts['expenses'] ?? 0).' gider kaydı', $sRoute('site.expenses.index'), 'receipt'],
+                ['Görev, Stok & Demirbaş', 'Task · InventoryItem · Asset', ($counts['inventory'] ?? 0).' stok kalemi', $sRoute('site.inventory.index'), 'package'],
+                ['Rezervasyon & Güvenlik / Kargo', 'CommonArea · Reservation · SecurityEntry', ($counts['reservations'] ?? 0).' rezervasyon', $sRoute('site.reservations.index'), 'shield-check'],
+                ['Kurul, Karar, Duyuru & Belge', 'Meeting · Decision · Announcement · Document', 'Kurul & İletişim', $sRoute('site.meetings.index'), 'megaphone'],
+                ['Rapor Merkezi & Denetim İzleri', 'ReportService · AuditLog (PDF/CSV)', ($counts['audits'] ?? 0).' denetim izi', $sRoute('site.reports.index'), 'printer'],
+            ],
+        ],
     ];
 @endphp
-<x-layout heading="Operasyon panosu">
+<x-layout heading="Genel Portföy ve Sistem Yönetim Panosu" subheading="Yönetiminizdeki tüm apartman ve sitelerin finansal özetini, veri modellerini ve operasyonel modüllerini tek ekrandan kontrol edin.">
     <x-slot:actions>
         <details class="dropdown relative">
-            <summary class="select-btn"><span data-range-label>{{ $window['label'] }}</span><x-icon name="chevron-down" :size="15" class="text-muted" /></summary>
-            <div class="absolute right-0 top-full z-40 mt-1.5 w-40 rounded-xl border border-line bg-white p-1.5 shadow-[0_12px_32px_-12px_rgba(23,22,44,0.18)]">
+            <summary class="select-btn">
+                <x-icon name="calendar" :size="14" class="text-[#71717a]" />
+                <span data-range-label>{{ $window['label'] }}</span>
+                <x-icon name="chevron-down" :size="14" class="text-[#71717a]" />
+            </summary>
+            <div class="absolute right-0 top-full z-40 mt-1.5 w-44 rounded-2xl border border-[#242428] bg-[#141416] p-1.5 shadow-2xl">
                 @foreach (\App\Services\DashboardService::RANGES as $key => $label)
-                    <a href="{{ route('dashboard', ['range' => $key]) }}" data-range-switch="{{ $key }}" data-label="{{ $label }}" class="drop-item {{ $range === $key ? 'active' : '' }}" @if ($range === $key) aria-current="page" @endif>{{ $label }}</a>
+                    <a href="{{ route('dashboard', ['range' => $key]) }}" class="drop-item {{ $range === $key ? 'active' : '' }}" @if ($range === $key) aria-current="page" @endif>{{ $label }}</a>
                 @endforeach
             </div>
         </details>
-        <a href="{{ route('sites.index') }}" class="icon-btn" aria-label="Siteler" title="Siteler"><x-icon name="settings" :size="17" /></a>
+        <button type="button" data-toggle="apt-modal" class="btn btn-secondary">
+            <x-icon name="building-2" :size="14" /><span>Konut Seç / Ekle</span>
+        </button>
+        <a href="{{ $newHref }}" class="btn-brand">
+            <x-icon name="plus" :size="14" /><span>Yeni Tahakkuk</span>
+        </a>
     </x-slot:actions>
 
-    <div class="-mx-4 sm:-mx-8">
-        <div class="grid grid-cols-1 border-y border-line sm:grid-cols-2 lg:grid-cols-5 lg:divide-x lg:divide-line">
-            <x-dash.stat label="Gelir" :value="max(220000, $now['income'])" :prev="max(218300, $prev['income'])" />
-            <x-dash.stat label="Giderler" :value="max(155000, $now['expense'])" :prev="max(141340, $prev['expense'])" invert />
-            <x-dash.stat label="Sakin & işlem hacmi" format="number" :value="$volume" :prev="947" :href="route('users.index')" />
-            <x-dash.stat label="Daire başına gelir" :value="$perUnit" :prev="round($perUnit * 0.856, 2)" :href="route('sites.index')" />
-            <x-dash.stat label="Tahsilat & doluluk" format="percent" :value="max(77.1, $collectionState['rate'])" :prev="71.4" />
-        </div>
-
-        <div class="grid border-b border-line lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-            <x-dash.section title="Tahsilat ve işlem yükü" :href="route('sites.index')" class="px-4 sm:px-8 lg:border-r lg:border-line">
-                <x-dash.bars :items="$months" label="Haftalık ve aylık işlem yükü" metricLabel="İşlem" subLabel="Yük" />
-            </x-dash.section>
-
-            <x-dash.section title="Yönetici ve birim performansı" class="px-4 sm:px-8">
-                <x-slot:actions>
-                    <button type="button" data-scroll="sites-track" data-dir="prev" class="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:bg-slate-50 hover:text-ink" aria-label="Önceki"><x-icon name="chevron-right" :size="15" class="rotate-180" /></button>
-                    <button type="button" data-scroll="sites-track" data-dir="next" class="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:bg-slate-50 hover:text-ink" aria-label="Sonraki"><x-icon name="chevron-right" :size="15" /></button>
-                    <a href="{{ route('sites.index') }}" class="btn btn-secondary btn-sm">Tümünü gör</a>
-                </x-slot:actions>
-                <div id="sites-track" class="flex snap-x gap-3.5 overflow-x-auto pb-1 [scrollbar-width:none]">
-                    @foreach ($cards as $c)
-                        <a href="{{ $c['href'] }}" class="tile min-w-[215px] flex-1 shrink-0 snap-start p-4 transition-colors hover:border-brand-300 sm:min-w-[calc((100%-1.75rem)/3)]">
-                            <div class="flex items-center gap-3">
-                                <x-dash.avatar :index="$loop->index" :size="44" />
-                                <span class="min-w-0">
-                                    <span class="block truncate text-[14px] font-semibold text-ink">{{ $c['name'] }}</span>
-                                    <span class="block truncate text-xs text-muted">{{ $c['role'] }}</span>
-                                </span>
-                            </div>
-                            <dl class="mt-4 space-y-2 text-[13px]">
-                                <div class="flex items-center justify-between"><dt class="text-muted">İşlem adedi</dt><dd class="font-semibold tabular-nums text-ink">{{ $c['count'] }}</dd></div>
-                                <div class="flex items-center justify-between"><dt class="text-muted">Gelir</dt><dd class="font-bold tabular-nums text-ink">{{ tl($c['value']) }}</dd></div>
-                                <div class="flex items-center justify-between"><dt class="text-muted">Puan</dt><dd class="inline-flex items-center gap-1 font-semibold tabular-nums text-ink"><x-icon name="star" :size="13" class="text-amber-400" />{{ $c['score'] }}</dd></div>
-                            </dl>
-                        </a>
-                    @endforeach
-                </div>
-                <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#f3f1fe] px-4 py-3.5">
-                    <div class="flex items-center gap-3">
-                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#e4dffc] text-[#6e5ce0]"><x-icon name="flame" :size="17" /></span>
-                        <div>
-                            <p class="text-[13.5px] font-semibold text-ink">Yöneticiler bu hafta {{ tl(max(22322, $collectionState['collected'])) }} tahsilat gerçekleştirdi</p>
-                            <p class="text-xs text-muted">Toplam gelirin %{{ number_format($collectionState['rate'] ?: 75, 1, ',', '.') }} kadarı · {{ $counts['sites'] }} aktif konut</p>
-                        </div>
-                    </div>
-                    <a href="{{ route('sites.index') }}" class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#5b49cc] hover:text-[#3b2f8a]">Tüm analitiği gör <x-icon name="arrow-right" :size="15" /></a>
-                </div>
-            </x-dash.section>
-        </div>
-
-        <div class="grid border-b border-line lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-            <x-dash.section title="Gelir kaynak dağılımı" :href="route('sites.index')" class="px-4 sm:px-8 lg:border-r lg:border-line">
-                <div class="grid gap-2.5 sm:grid-cols-2">
-                    @foreach ($sources as $i => $row)
-                        @php $pct = $row['pct'] ?? ($row['value'] > 0 ? round($row['value'] / $sourceTotal * 100) : 0); @endphp
-                        <div class="soft-row">
-                            <span class="flex min-w-0 items-center gap-2.5 text-[13px]">
-                                @if ($i < 5)
-                                    <i class="h-4 w-[3px] shrink-0 rounded-full {{ $markers[$i] }}"></i>
-                                @else
-                                    <span class="flex shrink-0 flex-col gap-[2px]"><i class="h-[3px] w-[3px] rounded-full bg-slate-400"></i><i class="h-[3px] w-[3px] rounded-full bg-slate-400"></i><i class="h-[3px] w-[3px] rounded-full bg-slate-400"></i></span>
-                                @endif
-                                <span class="truncate font-medium text-ink">{{ $row['label'] }}</span>
-                                <span class="text-muted">({{ $pct }}%)</span>
-                            </span>
-                            <span class="shrink-0 pl-2 text-[15px] font-bold tabular-nums text-ink">{{ tl($row['value']) }}</span>
-                        </div>
-                    @endforeach
-                </div>
-            </x-dash.section>
-
-            <x-dash.section title="Birim performansı" class="px-4 sm:px-8">
-                <x-slot:actions>
-                    <button type="button" data-dept-nav="prev" data-dept-box="overview-dept" class="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:bg-slate-50 hover:text-ink" aria-label="Önceki"><x-icon name="chevron-right" :size="15" class="rotate-180" /></button>
-                    <button type="button" data-dept-nav="next" data-dept-box="overview-dept" class="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:bg-slate-50 hover:text-ink" aria-label="Sonraki"><x-icon name="chevron-right" :size="15" /></button>
-                    <a href="{{ route('sites.index') }}" class="btn btn-secondary btn-sm">Tümünü gör</a>
-                </x-slot:actions>
-                <div id="overview-dept" class="tile p-5" data-dept-index="0" data-dept-slides='@json($depts)'>
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <a data-dept-link href="{{ $depts[0]['href'] }}" class="flex items-center gap-3 text-[15px] font-semibold text-ink hover:text-brand-800">
-                            <span data-dept-icon-slot><x-dash.dept-icon :index="0" /></span>
-                            <span data-dept-title>{{ $depts[0]['title'] }}</span>
-                        </a>
-                        <div class="flex flex-wrap gap-2 text-xs">
-                            <span class="inline-flex items-center gap-1.5 rounded-xl border border-line bg-white px-3 py-1.5">
-                                <x-icon name="circle-dollar-sign" :size="14" class="text-muted" />
-                                <span class="text-muted">Tahsilat</span>
-                                <b data-dept-earned class="font-semibold text-emerald-600 tabular-nums">+{{ tl($depts[0]['earned']) }}</b>
-                            </span>
-                            <span class="inline-flex items-center gap-1.5 rounded-xl border border-line bg-white px-3 py-1.5">
-                                <x-icon name="zap" :size="14" class="text-muted" />
-                                <span class="text-muted">Verimlilik</span>
-                                <b data-dept-util class="font-semibold text-[#6e5ce0] tabular-nums">{{ $depts[0]['util'] }}%</b>
-                            </span>
-                        </div>
-                    </div>
-                    <div class="mt-6"><x-dash.ticks :pct="$depts[0]['pct']" /></div>
-                </div>
-            </x-dash.section>
-        </div>
-
-        <div class="grid lg:grid-cols-[minmax(0,8fr)_minmax(0,4fr)]">
-            <div class="min-w-0 lg:border-r lg:border-line">
-                <div class="border-b border-line px-4 py-6 sm:px-8">
-                    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-                        <h2 class="section-title">Envanter ve tahsilat trendi</h2>
-                        <div class="flex items-center gap-5 text-xs font-medium">
-                            <span class="inline-flex items-center gap-2 text-ink"><i class="h-3.5 w-[3px] rounded-full bg-[#6e5ce0]"></i>Bu hafta</span>
-                            <span class="inline-flex items-center gap-2 text-muted"><i class="h-3.5 w-[3px] rounded-full bg-[#c3baf5]"></i>Geçen hafta</span>
-                        </div>
-                    </div>
-                    <x-dash.spline />
-                </div>
-
-                <div class="px-4 py-6 sm:px-8" data-overview-table>
-                    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-                        <h2 class="section-title">Birim ve kullanıcı özeti</h2>
-                        <div class="flex items-center gap-2">
-                            <div class="relative">
-                                <x-icon name="search" :size="15" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                                <input type="text" data-table-search value="{{ $search }}" placeholder="Ara..." class="w-56 rounded-xl border border-line bg-white py-2 pl-9 pr-3 text-xs text-ink placeholder:text-muted focus:border-brand-400 focus:outline-none">
-                            </div>
-                            <a href="{{ route('users.index') }}" class="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-white text-ink transition-colors hover:bg-slate-50" title="Tüm kayıtlar"><x-icon name="filter" :size="15" /></a>
-                        </div>
-                    </div>
-
-                    <div class="hidden grid-cols-[2fr_1fr_1.1fr_1.4fr_1fr_0.9fr_1fr] gap-3 px-4 pb-2.5 text-xs text-muted md:grid">
-                        <span>Ad / Birim</span>
-                        <span>Kod</span>
-                        <span>Kategori</span>
-                        <span>Konum</span>
-                        <span>Kapasite / Bakiye</span>
-                        <span>Durum</span>
-                        <span class="text-right">Son Güncelleme</span>
-                    </div>
-
-                    <div class="space-y-2.5">
-                        @foreach ($sites as $site)
-                            <div data-table-row class="grid grid-cols-1 items-center gap-3 rounded-2xl bg-[#f7f7fa] px-4 py-3 text-[13px] transition-colors hover:bg-[#f1f0f7] md:grid-cols-[2fr_1fr_1.1fr_1.4fr_1fr_0.9fr_1fr]">
-                                <a href="{{ route('site.dashboard', $site) }}" class="flex min-w-0 items-center gap-3 font-medium text-ink hover:text-brand-700">
-                                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-white text-muted"><x-icon name="package" :size="16" /></span>
-                                    <span class="truncate">{{ $site->name }}</span>
-                                </a>
-                                <span class="font-medium text-ink/80 tabular-nums">KON-{{ $site->code }}</span>
-                                <span><span class="inline-flex rounded-lg bg-[#eaeaf0] px-2.5 py-1 text-xs font-medium text-ink">Rezidans</span></span>
-                                <span class="flex min-w-0 items-center gap-1.5 text-ink/80"><x-icon name="map-pin" :size="14" class="shrink-0 text-muted" /><span class="truncate">{{ $site->city ?: 'Merkez Depo' }}</span></span>
-                                <span class="font-semibold tabular-nums text-ink">{{ $site->units_count }} daire</span>
-                                <span>
-                                    @if ($site->overdue > 0)
-                                        <span class="inline-flex items-center gap-1.5 rounded-lg bg-amber-100/80 px-2.5 py-1 text-xs font-medium text-amber-800"><i class="h-1.5 w-1.5 rounded-full bg-amber-500"></i>İzlemede</span>
-                                    @else
-                                        <span class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100/80 px-2.5 py-1 text-xs font-medium text-emerald-700"><i class="h-1.5 w-1.5 rounded-full bg-emerald-500"></i>Aktif</span>
-                                    @endif
-                                </span>
-                                <span class="text-right text-xs text-muted">2 saat önce</span>
-                            </div>
-                        @endforeach
-
-                        @foreach ($users->take(4) as $u)
-                            <div data-table-row class="grid grid-cols-1 items-center gap-3 rounded-2xl bg-[#f7f7fa] px-4 py-3 text-[13px] transition-colors hover:bg-[#f1f0f7] md:grid-cols-[2fr_1fr_1.1fr_1.4fr_1fr_0.9fr_1fr]">
-                                <a href="{{ route('users.show', $u) }}" class="flex min-w-0 items-center gap-3 font-medium text-ink hover:text-brand-700">
-                                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-white text-muted"><x-icon name="users" :size="16" /></span>
-                                    <span class="truncate">{{ $u->name }}</span>
-                                </a>
-                                <span class="font-medium text-ink/80 tabular-nums">USR-{{ 100 + $u->id }}</span>
-                                <span><span class="inline-flex rounded-lg bg-[#eaeaf0] px-2.5 py-1 text-xs font-medium text-ink">{{ $u->is_super_admin ? 'Yönetim' : ($u->role === 'admin' ? 'Operasyon' : 'Sakin') }}</span></span>
-                                <span class="flex min-w-0 items-center gap-1.5 text-ink/80"><x-icon name="map-pin" :size="14" class="shrink-0 text-muted" /><span class="truncate">{{ $u->email }}</span></span>
-                                <span class="font-semibold tabular-nums text-ink">{{ max(1, $u->memberships_count) }} birim</span>
-                                <span>
-                                    @if ($u->is_super_admin)
-                                        <span class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100/80 px-2.5 py-1 text-xs font-medium text-emerald-700"><i class="h-1.5 w-1.5 rounded-full bg-emerald-500"></i>Tam yetki</span>
-                                    @else
-                                        <span class="inline-flex items-center gap-1.5 rounded-lg bg-amber-100/80 px-2.5 py-1 text-xs font-medium text-amber-800"><i class="h-1.5 w-1.5 rounded-full bg-amber-500"></i>Standart</span>
-                                    @endif
-                                </span>
-                                <span class="text-right text-xs text-muted">{{ $u->created_at?->diffForHumans() ?? '1 gün önce' }}</span>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-
-            <div class="px-4 py-6 sm:px-8">
-                <div class="mb-5 flex items-center justify-between gap-3">
-                    <h2 class="section-title">Uyarılar</h2>
-                    <a href="{{ route('sites.index') }}" class="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:bg-slate-50 hover:text-ink" title="Tümü"><x-icon name="more-horizontal" :size="16" /></a>
-                </div>
-                <div class="space-y-3">
-                    @foreach ($alerts as $al)
-                        <div class="flex items-center justify-between gap-3 rounded-2xl border border-line bg-white p-3.5 transition-colors hover:border-brand-200">
-                            <div class="flex min-w-0 items-center gap-3">
-                                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ $alertTones[$al['tone']] }}">
-                                    <x-icon name="alert-triangle" :size="17" />
-                                </span>
-                                <div class="min-w-0">
-                                    <p class="truncate text-[13.5px] font-semibold text-ink">{{ $al['title'] }}</p>
-                                    <p class="truncate text-xs text-muted">{{ $al['sub'] }}</p>
-                                </div>
-                            </div>
-                            <a href="{{ $al['href'] }}" class="shrink-0 rounded-xl bg-[#efedfd] px-3.5 py-1.5 text-xs font-semibold text-[#5b49cc] transition-colors hover:bg-[#e2defc]">{{ $al['btn'] }}</a>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        </div>
+    <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <x-dash.stat :stagger="0" label="Toplam Tahakkuk" :value="$collectionState['accrued']" icon="file-text" :progress="$collectionState['rate']" :href="$newHref" />
+        <x-dash.stat :stagger="1" label="Tahsil Edilen" :value="$collectionState['collected']" icon="check-circle-2" :note="($collectionState['paid_count'] ?? 0).' tahsilat'" :href="$sRoute('site.collections.index')" />
+        <x-dash.stat :stagger="2" label="Bekleyen Alacak" :value="$totals['receivables']" icon="circle-dollar-sign" :note="'Geciken: '.tl($totals['overdue'] ?? 0)" :href="$newHref" />
+        <x-dash.stat :stagger="3" label="Toplam Kasa & Banka" :value="$totals['balance']" icon="wallet" :note="($counts['transactions'] ?? 0).' kasa hareketi'" :href="$sRoute('site.cashboxes.index')" />
+        <x-dash.stat :stagger="4" label="Ödenen Kayıtlar" :ratio="$paidRatio" icon="trending-up" :progress="$collectionState['rate']" :href="route('sites.index')" />
+        <x-dash.stat :stagger="5" label="Portföy & Yapı" :ratio="$siteUnitRatio" icon="building-2" :note="($totals['members'] ?? 0).' sakin · '.($counts['users'] ?? 0).' kullanıcı'" :href="route('sites.index')" />
     </div>
+
+    <div class="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <section style="--stagger: 4" class="spotlight-card reveal-up rounded-[24px] border border-[#1f1f23] bg-[#141416] p-6 xl:col-span-8">
+            <div class="relative z-10 flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-[15px] font-semibold text-white">Portföy Gelir ve Tahakkuk Özeti</h2>
+                    <p class="mt-0.5 text-xs text-[#71717a]">Tüm sitelerde seçilen dönemde tahsil edilen ve tahakkuk eden tutarlar.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-4">
+                    <span class="inline-flex items-center gap-1.5 text-xs text-[#a1a1aa]"><i class="h-2 w-2 rounded-full bg-emerald-500"></i>Tahsilat</span>
+                    <span class="inline-flex items-center gap-1.5 text-xs text-[#a1a1aa]"><i class="h-2 w-2 rounded-full bg-white"></i>Tahakkuk</span>
+                    <div class="inline-flex items-center rounded-full border border-[#242428] bg-[#0c0c0e] p-0.5 text-[11px]" data-chart-switcher>
+                        <button type="button" data-chart-mode="bar" class="rounded-full bg-[#1f1f23] px-3 py-1 font-medium text-white transition-all duration-200">30 Gün</button>
+                        <button type="button" data-chart-mode="month" class="rounded-full px-3 py-1 font-medium text-[#71717a] transition-all duration-200 hover:text-white">12 Ay</button>
+                    </div>
+                </div>
+            </div>
+
+            <x-dash.bars :daily="$daily" :items="$monthly" label="Gelir özeti" />
+        </section>
+
+        <section style="--stagger: 5" class="spotlight-card reveal-up flex flex-col justify-between rounded-[24px] border border-[#1f1f23] bg-[#141416] p-6 xl:col-span-4">
+            <div class="relative z-10">
+                <div class="flex items-center justify-between border-b border-[#1f1f23] pb-3.5">
+                    <div>
+                        <h2 class="text-[15px] font-semibold text-white">Portföy Operasyonel Uyarılar</h2>
+                        <p class="text-[11px] text-[#71717a]">Tüm sitelerde aksiyon bekleyen kayıtlar</p>
+                    </div>
+                    <span class="badge badge-amber">{{ collect($attention)->sum(fn ($a) => $a[1]) }} kayıt</span>
+                </div>
+
+                <div class="mt-4 space-y-2">
+                    @foreach ($attention as [$label, $count, $icon, $tone])
+                        <div class="soft-row py-2.5 text-xs">
+                            <span class="flex items-center gap-2.5 text-[#e4e4e7]">
+                                <span class="flex h-7 w-7 items-center justify-center rounded-lg border border-[#26262c] bg-[#141416] text-[#a1a1aa]">
+                                    <x-icon :name="$icon" :size="13" />
+                                </span>
+                                <span>{{ $label }}</span>
+                            </span>
+                            <span class="badge {{ $count ? ($tone === 'red' ? 'badge-red' : 'badge-amber') : 'badge-gray' }}">{{ $count }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="relative z-10 mt-4 border-t border-[#1f1f23] pt-4">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-[#71717a]">Açık Destek Talepleri</span>
+                    <span class="font-semibold text-white">{{ $counts['tickets'] ?? 0 }} talep ({{ $counts['tickets_urgent'] ?? 0 }} acil)</span>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <section style="--stagger: 6" class="spotlight-card reveal-up rounded-[24px] border border-[#1f1f23] bg-[#141416] p-6">
+        <div class="relative z-10 flex flex-wrap items-center justify-between gap-4 border-b border-[#1f1f23] pb-4">
+            <div>
+                <h2 class="text-base font-bold text-white">Tüm Sistem Modülleri ve Veri Modelleri</h2>
+                <p class="mt-0.5 text-xs text-[#71717a]">Sistemdeki 35+ model ve yönetim ekranına kategorilerine göre doğrudan geçiş yapın.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{{ route('sites.index') }}" class="btn btn-secondary btn-sm">Tüm Siteler ({{ $counts['sites'] ?? 0 }})</a>
+                <a href="{{ route('users.index') }}" class="btn btn-secondary btn-sm">Kullanıcılar ({{ $counts['users'] ?? 0 }})</a>
+                <a href="{{ route('properties.index') }}" class="btn btn-secondary btn-sm">Emlak Portföyü ({{ $counts['properties'] ?? 0 }})</a>
+            </div>
+        </div>
+
+        <div class="relative z-10 mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            @foreach ($portfolioModules as $group)
+                <div class="flex flex-col justify-between rounded-2xl border border-[#222228] bg-[#101013] p-4 transition-all duration-200 hover:border-[#32323c]">
+                    <div>
+                        <div class="flex items-start gap-3 border-b border-[#1c1c22] pb-3">
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#2a2a34] bg-[#18181e] text-white">
+                                <x-icon :name="$group['icon']" :size="16" />
+                            </span>
+                            <div class="min-w-0">
+                                <h3 class="truncate text-[13px] font-semibold text-white">{{ $group['title'] }}</h3>
+                                <p class="truncate text-[11px] text-[#71717a]">{{ $group['desc'] }}</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-3 space-y-1.5">
+                            @foreach ($group['items'] as [$mTitle, $mModel, $mStat, $mHref, $mIcon])
+                                <a href="{{ $mHref }}" class="group/item flex items-center justify-between gap-2 rounded-xl border border-transparent bg-[#151519] px-3 py-2 text-xs transition-all duration-150 hover:border-[#2c2c36] hover:bg-[#1b1b22]">
+                                    <div class="flex min-w-0 items-center gap-2.5">
+                                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#1e1e26] text-[#a1a1aa] transition-colors group-hover/item:bg-white group-hover/item:text-[#09090b]">
+                                            <x-icon :name="$mIcon" :size="13" />
+                                        </span>
+                                        <div class="min-w-0">
+                                            <p class="truncate font-medium text-[#e4e4e7] group-hover/item:text-white">{{ $mTitle }}</p>
+                                            <p class="truncate text-[10px] text-[#6b6b76]">{{ $mModel }}</p>
+                                        </div>
+                                    </div>
+                                    <span class="shrink-0 rounded-full border border-[#26262f] bg-[#121216] px-2 py-0.5 text-[10px] font-medium text-[#a1a1aa] group-hover/item:border-[#3a3a46] group-hover/item:text-white">{{ $mStat }}</span>
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    </section>
+
+    <section style="--stagger: 7" class="spotlight-card reveal-up rounded-[24px] border border-[#1f1f23] bg-[#141416] p-6" data-tabs>
+        <div class="relative z-10 flex flex-wrap items-center justify-between gap-3 border-b border-[#1f1f23] pb-4">
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" data-filter="all" class="range-pill active">Yönetilen Siteler ({{ $sites->count() }})</button>
+                <button type="button" data-filter="activity" class="range-pill">Son İşlemler ({{ count($activity) }})</button>
+                <button type="button" data-filter="users" class="range-pill">Kullanıcılar ({{ $users->count() }})</button>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" data-toggle="apt-modal" class="btn btn-secondary btn-sm">Konut Ekle</button>
+                <a href="{{ $newHref }}" class="btn btn-primary btn-sm">+ Tahakkuk Oluştur</a>
+            </div>
+        </div>
+
+        @if ($sites->isEmpty())
+            <div class="relative z-10 flex flex-col items-center justify-center py-14 text-center">
+                <span class="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#26262c] bg-[#1a1a1f] text-[#71717a]">
+                    <x-icon name="building-2" :size="20" />
+                </span>
+                <h3 class="mt-4 text-sm font-semibold text-white">Henüz kayıtlı konut yok</h3>
+                <p class="mt-1 max-w-sm text-xs text-[#71717a]">Yönetime başlamak için ilk site veya apartman kaydınızı oluşturun.</p>
+            </div>
+        @else
+            <div class="relative z-10 mt-4 space-y-2">
+                @foreach ($sites as $site)
+                    @php $rate = $site->accrued > 0 ? round($site->collected / $site->accrued * 100) : 0; @endphp
+                    <div data-kind="all" class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#1f1f23] bg-[#18181c] px-4 py-3.5 text-xs transition-colors hover:border-[#2c2c34]">
+                        <a href="{{ route('site.dashboard', $site) }}" class="flex items-center gap-3">
+                            <span class="flex h-10 w-10 items-center justify-center rounded-xl border border-[#26262c] bg-[#141416] text-white">
+                                <x-icon name="building-2" :size="17" />
+                            </span>
+                            <div>
+                                <p class="text-[13px] font-semibold text-white">{{ $site->name }}</p>
+                                <p class="text-[11px] text-[#71717a]">{{ $site->code }} · {{ $site->units_count }} daire · {{ $site->members_count }} sakin</p>
+                            </div>
+                        </a>
+                        <div class="flex flex-wrap items-center gap-4 sm:gap-6">
+                            <div class="text-right">
+                                <p class="text-[11px] text-[#71717a]">Kasa & Banka</p>
+                                <p class="font-semibold text-emerald-400 tabular-nums">{{ tl($site->balance) }}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[11px] text-[#71717a]">Bekleyen Alacak</p>
+                                <p class="font-semibold text-amber-400 tabular-nums">{{ tl($site->receivables) }}</p>
+                            </div>
+                            <span class="badge badge-green">%{{ $rate }} tahsilat</span>
+                            <div class="flex items-center gap-1.5">
+                                <a href="{{ route('site.dashboard', $site) }}" class="btn btn-secondary btn-sm">Panoya Git</a>
+                                <a href="{{ route('site.units.index', $site) }}" class="btn btn-secondary btn-sm">Daireler</a>
+                                <a href="{{ route('site.finance', $site) }}" class="btn btn-secondary btn-sm">Finans</a>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+
+                @foreach ($activity as $a)
+                    <div data-kind="activity" hidden class="flex items-center justify-between gap-3 rounded-2xl border border-[#1f1f23] bg-[#18181c] px-4 py-3 text-xs">
+                        <div>
+                            <p class="font-medium text-white">{{ $a['label'] }}</p>
+                            <p class="text-[11px] text-[#71717a]">{{ $a['site'] }} · {{ $a['user'] ?? 'Sistem' }} · {{ $a['at']->diffForHumans() }}</p>
+                        </div>
+                        @if ($a['detail'])
+                            <span class="font-semibold text-white tabular-nums">{{ tl($a['detail']) }}</span>
+                        @endif
+                    </div>
+                @endforeach
+
+                @foreach ($users as $u)
+                    <a href="{{ route('users.show', $u) }}" data-kind="users" hidden class="flex items-center justify-between gap-3 rounded-2xl border border-[#1f1f23] bg-[#18181c] px-4 py-3 text-xs transition-colors hover:border-[#2c2c34]">
+                        <div class="flex items-center gap-3">
+                            <span class="flex h-8 w-8 items-center justify-center rounded-full border border-[#26262c] bg-[#141416] font-semibold text-white">{{ mb_strtoupper(mb_substr($u->name, 0, 1)) }}</span>
+                            <div>
+                                <p class="font-medium text-white">{{ $u->name }}</p>
+                                <p class="text-[11px] text-[#71717a]">{{ $u->email }}</p>
+                            </div>
+                        </div>
+                        <span class="badge badge-gray">{{ $u->is_super_admin ? 'Süper admin' : ($u->role === 'admin' ? 'Yönetici' : 'Sakin') }}</span>
+                    </a>
+                @endforeach
+            </div>
+
+            <div data-empty hidden class="relative z-10 flex flex-col items-center justify-center py-14 text-center">
+                <span class="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#26262c] bg-[#1a1a1f] text-[#71717a]">
+                    <x-icon name="file-text" :size="20" />
+                </span>
+                <h3 class="mt-4 text-sm font-semibold text-white">Kayıt bulunamadı</h3>
+                <p class="mt-1 max-w-sm text-xs text-[#71717a]">Bu sekmede henüz gösterilecek kayıt bulunmuyor.</p>
+            </div>
+        @endif
+    </section>
 </x-layout>

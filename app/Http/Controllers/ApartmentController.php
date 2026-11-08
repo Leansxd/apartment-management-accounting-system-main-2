@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\FinanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class ApartmentController extends Controller
@@ -29,34 +30,25 @@ class ApartmentController extends Controller
             'blocks' => ['nullable', 'string', 'max:100'], // "A,B,C"
         ]);
 
-        $apartment = DB::transaction(function () use ($data, $request) {
-            $apartment = Apartment::create([
-                'name' => $data['name'], 'code' => mb_strtoupper($data['code']),
-                'address' => $data['address'] ?? null, 'city' => $data['city'] ?? null,
-                'owner_id' => $request->user()->id,
-            ]);
-            $apartment->managers()->attach($request->user());
-            $apartment->cashboxes()->create(['name' => 'Merkez Kasa', 'type' => 'cash']);
-            foreach (['Aidat' => 'income', 'Yakıt' => 'income', 'Demirbaş' => 'income', 'Diğer Gelir' => 'income',
-                'Elektrik' => 'expense', 'Su' => 'expense', 'Temizlik' => 'expense', 'Bakım Onarım' => 'expense',
-                'Personel' => 'expense', 'Diğer Gider' => 'expense'] as $name => $type) {
-                $apartment->categories()->create(['name' => $name, 'type' => $type]);
-            }
-            foreach (array_filter(array_map('trim', explode(',', $data['blocks'] ?? 'A'))) as $block) {
-                $apartment->blocks()->create(['name' => mb_strtoupper($block)]);
-            }
-
-            return $apartment;
-        });
+        $apartment = Apartment::provision($data, $request->user());
 
         return redirect()->route('site.units.index', $apartment)->with('status', 'Site oluşturuldu. Şimdi daireleri ekleyin.');
     }
 
-    public function edit(Apartment $apartment)
+    public function edit(Request $request, Apartment $apartment)
     {
+        $viewer = $request->user();
+        $adminsQuery = User::where('role', 'admin')->orderBy('name');
+        if (! $viewer->is_super_admin) {
+            $siteIds = $viewer->accessibleApartments()->pluck('id');
+            $adminsQuery->where(fn ($q) => $q
+                ->whereIn('id', DB::table('apartment_manager')->whereIn('apartment_id', $siteIds)->select('user_id'))
+                ->orWhereIn('id', Apartment::whereIn('id', $siteIds)->select('owner_id')));
+        }
+
         return view('site.settings', [
             'apartment' => $apartment->load('managers', 'owner'),
-            'admins' => User::where('role', 'admin')->orderBy('name')->get(['id', 'name', 'email']),
+            'admins' => $adminsQuery->get(['id', 'name', 'email']),
         ]);
     }
 
@@ -125,15 +117,18 @@ class ApartmentController extends Controller
             ['confirm.in' => 'Onay için site kodunu ('.$apartment->code.') yazın.']);
 
         DB::transaction(function () use ($apartment) {
-            foreach (['ledgerEntries', 'debtPayments', 'cashTransactions', 'debts', 'expenses', 'siteNotifications',
-                'announcements', 'polls', 'decisions', 'tickets', 'securityEntries', 'tasks', 'meters',
-                'inventoryItems', 'staff', 'duesDefinitions', 'vendors', 'members', 'unitGroups'] as $relation) {
+            foreach (['ledgerEntries', 'debtPayments', 'cashTransactions', 'bankLines', 'reservations', 'debts',
+                'expenses', 'budgetItems', 'meterBills', 'meters', 'assets', 'commonAreas', 'meetings',
+                'documents', 'siteNotifications', 'announcements', 'polls', 'decisions', 'tickets',
+                'securityEntries', 'tasks', 'inventoryItems', 'staff', 'duesDefinitions', 'vendors',
+                'members', 'unitGroups'] as $relation) {
                 $apartment->{$relation}()->delete();
             }
             $apartment->units()->withTrashed()->forceDelete();
             $apartment->blocks()->withTrashed()->forceDelete();
             $apartment->cashboxes()->update(['balance' => 0]);
         });
+        Storage::disk('local')->deleteDirectory("documents/{$apartment->id}");
         $finance->audit($apartment, $request->user(), 'RESET_APARTMENT', 'SETTINGS', null);
 
         return redirect()->route('site.units.index', $apartment)->with('status', 'Site verileri sıfırlandı.');

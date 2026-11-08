@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Debt extends Model
 {
     public const PENDING = 'pending';
+
     public const PAID = 'paid';
 
     public const DISPLAY = [
@@ -28,13 +29,29 @@ class Debt extends Model
             'amount' => 'decimal:2',
             'paid_amount' => 'decimal:2',
             'remaining_amount' => 'decimal:2',
+            'waived_late_fee_months' => 'array',
         ];
     }
 
-    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
-    public function unit(): BelongsTo { return $this->belongsTo(Unit::class)->withTrashed(); }
-    public function category(): BelongsTo { return $this->belongsTo(TransactionCategory::class); }
-    public function payments(): HasMany { return $this->hasMany(DebtPayment::class); }
+    public function apartment(): BelongsTo
+    {
+        return $this->belongsTo(Apartment::class);
+    }
+
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class)->withTrashed();
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(TransactionCategory::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(DebtPayment::class);
+    }
 
     /** Ekranda gösterilecek durum: paid | overdue | partial | pending (veritabanında yalnızca pending/paid saklanır). */
     public function displayStatus(): string

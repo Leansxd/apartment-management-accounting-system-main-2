@@ -20,12 +20,23 @@ class Member extends Model
 
     protected function casts(): array
     {
-        return ['activated_at' => 'datetime', 'moved_in_on' => 'date', 'moved_out_on' => 'date'];
+        return ['activated_at' => 'datetime', 'moved_in_on' => 'date', 'moved_out_on' => 'date', 'id_number' => 'encrypted'];
     }
 
-    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
-    public function unit(): BelongsTo { return $this->belongsTo(Unit::class)->withTrashed(); }
-    public function user(): BelongsTo { return $this->belongsTo(User::class); }
+    public function apartment(): BelongsTo
+    {
+        return $this->belongsTo(Apartment::class);
+    }
+
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class)->withTrashed();
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     /** Kriptografik rastgele davet kodu: SITEKODU-A5-XXXXXXXX (karışan 0/O ve 1/I harfleri yok). */
     public static function generateInviteCode(string $apartmentCode, string $unitLabel): string

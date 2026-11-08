@@ -122,9 +122,9 @@ class OperationsController extends Controller
         $apartment->inventoryItems()->create($request->validate([
             'name' => ['required', 'string', 'max:120'],
             'category' => ['required', Rule::in(InventoryItem::CATEGORIES)],
-            'quantity' => ['required', 'integer', 'min:0'],
+            'quantity' => ['required', 'integer', 'min:0', 'max:2000000000'],
             'unit' => ['required', 'string', 'max:20'],
-            'min_stock' => ['required', 'integer', 'min:0'],
+            'min_stock' => ['required', 'integer', 'min:0', 'max:2000000000'],
             'location' => ['required', 'string', 'max:60'],
         ]));
 
@@ -170,7 +170,7 @@ class OperationsController extends Controller
             'type' => ['required', Rule::in(Meter::TYPES)],
             'unit_id' => ['nullable', Rule::exists('units', 'id')->where('apartment_id', $apartment->id)],
             'serial_no' => ['nullable', 'string', 'max:60'],
-            'initial_value' => ['required', 'numeric', 'min:0'],
+            'initial_value' => ['required', 'numeric', 'min:0', 'max:99999999999'],
         ]);
         $apartment->meters()->create($data + ['last_value' => $data['initial_value']]);
 
@@ -181,7 +181,7 @@ class OperationsController extends Controller
     public function storeReading(Request $request, Apartment $apartment, Meter $meter)
     {
         $data = $request->validate([
-            'value' => ['required', 'numeric', 'min:0'],
+            'value' => ['required', 'numeric', 'min:0', 'max:99999999999'],
             'read_on' => ['required', 'date', 'before_or_equal:today'],
             'note' => ['nullable', 'string', 'max:200'],
         ]);

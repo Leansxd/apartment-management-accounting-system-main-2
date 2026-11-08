@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Debt;
 use App\Models\Member;
 use App\Models\User;
+use App\Services\FinanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -46,7 +48,7 @@ class ResidentApiTest extends TestCase
         [$mine, $theirs] = [$this->unit($apt, 0), $this->unit($apt, 1)];
         $user = User::factory()->create();
         $apt->members()->create(['unit_id' => $mine->id, 'full_name' => 'Ben', 'user_id' => $user->id]);
-        $finance = app(\App\Services\FinanceService::class);
+        $finance = app(FinanceService::class);
         $finance->accrue($mine, ['description' => 'Benim', 'amount' => 1000, 'due_date' => '2026-01-31']);
         $finance->accrue($theirs, ['description' => 'Komşu', 'amount' => 1000, 'due_date' => '2026-01-31']);
         $apt->siteNotifications()->create(['title' => 'Herkese', 'body' => 'x']);
@@ -118,9 +120,32 @@ class ResidentApiTest extends TestCase
 
         $this->getJson("/api/sites/{$apt->id}/reservations", $headers)->assertJsonCount(1)->assertJsonPath('0.can_cancel', true);
         $this->deleteJson("/api/sites/{$apt->id}/reservations/{$id}", [], $headers)->assertOk();
-        $this->assertSame(0, \App\Models\Debt::count()); // ücret borcu silindi
+        $this->assertSame(0, Debt::count()); // ücret borcu silindi
 
         $apt->meetings()->create(['title' => 'Genel kurul', 'meets_at' => now()->addWeek()]);
         $this->getJson("/api/sites/{$apt->id}/meetings", $headers)->assertJsonPath('0.title', 'Genel kurul');
+    }
+
+    public function test_suresi_dolan_api_tokeni_401_ile_reddedilir(): void
+    {
+        $headers = $this->token(User::factory()->create());
+        $this->getJson('/api/me', $headers)->assertOk();
+
+        $this->travel(91)->days();
+        $this->app['auth']->forgetGuards();
+
+        $this->getJson('/api/me', $headers)->assertUnauthorized();
+    }
+
+    public function test_ayni_ipden_hesap_acma_saatte_10_ile_sinirlanir_ve_11_incisi_429_doner(): void
+    {
+        $registration = ['name' => 'Sakin', 'password' => 'GucluSifre123', 'device_name' => 'telefon'];
+        for ($attempt = 1; $attempt <= 10; $attempt++) {
+            $this->postJson('/api/register', $registration + ['email' => "sakin{$attempt}@test.dev"])->assertCreated();
+        }
+
+        $this->postJson('/api/register', $registration + ['email' => 'sakin11@test.dev'])->assertTooManyRequests();
+
+        $this->assertSame(10, User::count());
     }
 }

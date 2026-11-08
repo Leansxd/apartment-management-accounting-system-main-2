@@ -7,12 +7,16 @@ use App\Models\BankStatementLine;
 use App\Models\CashTransaction;
 use App\Models\Debt;
 use App\Models\Document;
+use App\Models\InventoryItem;
+use App\Models\LedgerEntry;
 use App\Models\Meeting;
+use App\Models\Member;
 use App\Models\Reservation;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -21,6 +25,7 @@ class NewModulesHttpTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Apartment $apt;
 
     protected function setUp(): void
@@ -29,6 +34,31 @@ class NewModulesHttpTest extends TestCase
         $this->seed(DatabaseSeeder::class);
         $this->admin = User::where('email', 'admin@demo.test')->first();
         $this->apt = Apartment::first();
+    }
+
+    public function test_kolon_aralig_disindaki_stok_miktari_dogrulamada_reddedilir(): void
+    {
+        $this->actingAs($this->admin)->post(route('site.inventory.store', $this->apt), [
+            'name' => 'Ampul', 'category' => InventoryItem::CATEGORIES[0], 'quantity' => 3000000000, 'unit' => 'adet', 'min_stock' => 1, 'location' => 'Depo',
+        ])->assertSessionHasErrors('quantity');
+
+        $this->assertDatabaseMissing('inventory_items', ['name' => 'Ampul']);
+    }
+
+    public function test_kasa_acilis_bakiyesi_kasaya_girer_ama_gelir_sayilmaz(): void
+    {
+        $incomeBefore = (float) $this->apt->cashTransactions()->operating()->where('type', 'income')->sum('amount');
+
+        $this->actingAs($this->admin)->post(route('site.cashboxes.store', $this->apt), [
+            'name' => 'Yeni Banka', 'type' => 'bank', 'opening_balance' => 1000,
+        ])->assertSessionHas('status');
+
+        $box = $this->apt->cashboxes()->where('name', 'Yeni Banka')->firstOrFail();
+        $this->assertEquals(1000, (float) $box->balance);
+        $this->assertSame('opening', $this->apt->cashTransactions()->where('cashbox_id', $box->id)->sole()->sub_type);
+        $this->assertSame($incomeBefore, (float) $this->apt->cashTransactions()->operating()->where('type', 'income')->sum('amount'));
+        $this->assertEquals(1000, $this->apt->ledgerEntries()->where('account_name', LedgerEntry::OPENING)->sum('credit'));
+        $this->assertLedgerBalanced($this->apt);
     }
 
     public function test_tum_yeni_sayfalar_acilir(): void
@@ -190,13 +220,13 @@ class NewModulesHttpTest extends TestCase
     {
         $member = $this->apt->members()->whereNull('user_id')->first();
         $this->actingAs($this->admin)->delete(route('site.members.destroy', [$this->apt, $member]), ['moved_out_on' => today()->toDateString(), 'move_out_reason' => 'Satış'])->assertRedirect();
-        $this->assertNotNull($member->fresh()?->deleted_at ?? \App\Models\Member::withTrashed()->find($member->id)->deleted_at);
+        $this->assertNotNull($member->fresh()?->deleted_at ?? Member::withTrashed()->find($member->id)->deleted_at);
         $this->actingAs($this->admin)->get(route('site.members.history', $this->apt))->assertOk()->assertSee($member->full_name)->assertSee('Satış');
     }
 
     public function test_bildirim_e_posta_secenegi_yalniz_e_postasi_olan_uyelere_gider(): void
     {
-        \Illuminate\Support\Facades\Mail::fake();
+        Mail::fake();
         $units = $this->apt->units()->limit(3)->get();
         $this->apt->members()->where('unit_id', $units[0]->id)->update(['email' => 'a@ornek.com']);
         $this->apt->members()->where('unit_id', $units[1]->id)->update(['email' => 'gecersiz-adres']);

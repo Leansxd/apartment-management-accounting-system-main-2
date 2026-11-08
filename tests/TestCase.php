@@ -10,6 +10,12 @@ use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        @unlink(config('setup.marker'));
+    }
+
     protected function admin(bool $super = false): User
     {
         $user = User::factory()->create();

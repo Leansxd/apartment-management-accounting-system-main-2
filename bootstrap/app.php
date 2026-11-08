@@ -3,6 +3,7 @@
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureResident;
 use App\Http\Middleware\EnsureSiteRole;
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -19,6 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias(['admin' => EnsureAdmin::class, 'resident' => EnsureResident::class, 'site.role' => EnsureSiteRole::class]);
         $middleware->redirectGuestsTo('/login');
         $middleware->redirectUsersTo('/');
+        $middleware->trustHosts();
+        $middleware->append(SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

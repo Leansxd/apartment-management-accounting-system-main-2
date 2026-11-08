@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Models\Apartment;
 use App\Models\User;
+use App\Services\DashboardService;
+use App\Services\InstallService;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -22,6 +25,11 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $install = $this->app->make(InstallService::class);
+        if (! $this->app->runningInConsole() && ! $install->installed()) {
+            $install->prepareRuntime();
+        }
+
         // Olmayan bir alana / ilişkiye erişmek sessizce null dönmesin (geliştirmede hata verir)
         Model::preventAccessingMissingAttributes(! $this->app->isProduction());
         Model::preventSilentlyDiscardingAttributes(! $this->app->isProduction());
@@ -31,9 +39,19 @@ class AppServiceProvider extends ServiceProvider
         // Panelde bir sitenin verisine erişim: süper admin, site sahibi veya yönetici listesindekiler
         Gate::define('manage', fn (User $user, Apartment $apartment) => $apartment->isManagedBy($user));
         Gate::define('super-admin', fn (User $user) => $user->is_super_admin);
+        // TC kimlik no ve davet kodu: yalnızca sakinleri yöneten rol görür
+        Gate::define('view-member-secrets', fn (User $user, Apartment $apartment) => $apartment->roleOf($user) === 'manager');
 
-        RateLimiter::for('login', fn (Request $request) => Limit::perMinute(5)
-            ->by(mb_strtolower((string) $request->input('email')).'|'.$request->ip()));
+        // Sıfırlama bağlantısı isteğin Host başlığından değil, APP_URL'den üretilir (Host zehirlenmesi)
+        ResetPassword::createUrlUsing(fn (User $user, string $token): string => rtrim(config('app.url'), '/')
+            .route('password.reset', ['token' => $token, 'email' => $user->getEmailForPasswordReset()], false));
+
+        // Hesap başına deneme sınırı + aynı IP'den çok hesabın denenmesine karşı IP sınırı
+        RateLimiter::for('login', fn (Request $request) => [
+            Limit::perMinute(5)->by(mb_strtolower((string) $request->input('email')).'|'.$request->ip()),
+            Limit::perMinute(20)->by('login-ip:'.$request->ip()),
+        ]);
+        RateLimiter::for('register', fn (Request $request) => Limit::perHour(10)->by('register-ip:'.$request->ip()));
         // Davet kodu tahminini engeller. Sayaç sunucuda tutulur; kullanıcı kendisi sıfırlayamaz.
         RateLimiter::for('invite', fn (Request $request) => [
             Limit::perHour(10)->by('invite-user:'.$request->user()?->id),
@@ -54,6 +72,10 @@ class AppServiceProvider extends ServiceProvider
             }
             $openTickets = $current ? $current->tickets()->whereIn('status', ['open', 'in_progress'])->count() : 0;
             $view->with(['sites' => $sites, 'site' => $site, 'currentSite' => $current, 'openTickets' => $openTickets]);
+        });
+
+        View::composer('components.dash.classic-hud', function ($view) {
+            $view->with(app(DashboardService::class)->classicHud($view->getData()['apartment']));
         });
     }
 }

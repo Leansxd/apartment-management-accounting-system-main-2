@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Apartment;
 use App\Models\Debt;
 use App\Models\Member;
+use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
@@ -20,14 +24,18 @@ class UserController extends Controller
     {
         $search = trim((string) $request->query('q'));
         $role = $request->query('role');
+        $viewer = $request->user();
+        $viewerSiteIds = $viewer->accessibleApartments()->pluck('id');
 
         return view('users.index', [
-            'users' => $this->visibleUsers($request->user())
+            'users' => $this->visibleUsers($viewer)
                 ->when($search, fn ($q) => $q->where(fn ($w) => $w->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")))
                 ->when(in_array($role, ['admin', 'user'], true), fn ($q) => $q->where('role', $role))
-                ->withCount('memberships')->orderBy('name')->paginate(50)->withQueryString(),
+                ->with(['memberships' => fn ($q) => $q->whereIn('apartment_id', $viewerSiteIds)->with('apartment:id,name', 'unit.block')])
+                ->orderBy('name')->paginate(50)->withQueryString(),
             'search' => $search,
             'role' => $role,
+            'sitesWithUnits' => $viewer->is_super_admin ? Apartment::orderBy('name')->with('units.block')->get(['id', 'name']) : collect(),
         ]);
     }
 
@@ -44,21 +52,42 @@ class UserController extends Controller
             'memberships' => $memberships,
             'debts' => $debts,
             'openDebt' => $debts->where('status', Debt::PENDING)->sum('remaining_amount'),
-            'managed' => $user->accessibleApartments()->get(),
+            'managed' => $user->accessibleApartments()->whereIn('id', $siteIds)->get(),
         ]);
     }
 
-    /** Süper admin: yeni panel yöneticisi veya kullanıcı oluşturur */
+    /** Süper admin: panel yöneticisi veya bir daireye bağlı sakin hesabı oluşturur. */
     public function store(Request $request)
     {
+        $isResident = $request->input('role') === 'user';
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'max:120', 'unique:users,email'],
             'password' => ['required', Password::min(8)],
             'role' => ['required', Rule::in(['admin', 'user'])],
-        ]);
-        $user = User::create($data);
-        $user->forceFill(['role' => $data['role']])->save();
+            'unit_id' => [Rule::requiredIf($isResident), 'nullable', 'integer', Rule::exists('units', 'id')->whereNull('deleted_at')],
+            'member_type' => [Rule::requiredIf($isResident), 'nullable', Rule::in(array_keys(Member::TYPES))],
+        ], ['unit_id.required' => 'Sakin için bir daire seçin.', 'member_type.required' => 'Sakinin türünü seçin.']);
+
+        $unit = $isResident ? Unit::findOrFail($data['unit_id']) : null;
+        $existingMember = $unit ? Member::where('unit_id', $unit->id)->where('type', $data['member_type'])->first() : null;
+        if ($existingMember?->user_id) {
+            return back()->withInput($request->except('password'))->with('error', 'Bu dairede bu türde kayıtlı sakinin zaten bir hesabı var.');
+        }
+
+        DB::transaction(function () use ($data, $unit, $existingMember) {
+            $user = User::create(Arr::only($data, ['name', 'email', 'password']));
+            $user->forceFill(['role' => $data['role']])->save();
+
+            if ($existingMember) {
+                $existingMember->update(['user_id' => $user->id, 'activated_at' => now()]);
+            } elseif ($unit) {
+                Member::create([
+                    'apartment_id' => $unit->apartment_id, 'unit_id' => $unit->id, 'user_id' => $user->id,
+                    'type' => $data['member_type'], 'full_name' => $data['name'], 'email' => $data['email'], 'activated_at' => now(),
+                ]);
+            }
+        });
 
         return back()->with('status', 'Kullanıcı oluşturuldu.');
     }

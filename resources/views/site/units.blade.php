@@ -88,7 +88,7 @@
                                     <button class="btn btn-primary w-full">Kaydet</button>
                                 </form>
                             </details>
-                            <form method="POST" action="{{ route('site.units.destroy', [$apartment, $u]) }}" class="inline" onsubmit="return confirm('{{ $u->label() }} silinsin mi?')">
+                            <form method="POST" action="{{ route('site.units.destroy', [$apartment, $u]) }}" class="inline" onsubmit="return confirm(@js($u->label().' silinsin mi?'))">
                                 @csrf @method('DELETE')<button class="btn btn-danger btn-sm">Sil</button>
                             </form>
                         </td>

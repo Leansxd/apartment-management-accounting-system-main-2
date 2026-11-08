@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -22,6 +23,7 @@ class CashTransaction extends Model
         'transfer_out' => 'Virman (Giden)',
         'reversal' => 'İptal (Ters Kayıt)',
         'general' => 'Genel',
+        'opening' => 'Açılış Bakiyesi',
     ];
 
     protected $guarded = ['id'];
@@ -36,11 +38,36 @@ class CashTransaction extends Model
         ];
     }
 
-    public function cashbox(): BelongsTo { return $this->belongsTo(Cashbox::class); }
-    public function unit(): BelongsTo { return $this->belongsTo(Unit::class)->withTrashed(); }
-    public function debt(): BelongsTo { return $this->belongsTo(Debt::class); }
-    public function category(): BelongsTo { return $this->belongsTo(TransactionCategory::class); }
-    public function performer(): BelongsTo { return $this->belongsTo(User::class, 'performed_by'); }
+    /** Banka metni veya iptal nedeni eklenen açıklamalar kolon sınırını (255) aşmasın. */
+    protected function description(): Attribute
+    {
+        return Attribute::set(fn (string $value): string => mb_substr($value, 0, 255));
+    }
+
+    public function cashbox(): BelongsTo
+    {
+        return $this->belongsTo(Cashbox::class);
+    }
+
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class)->withTrashed();
+    }
+
+    public function debt(): BelongsTo
+    {
+        return $this->belongsTo(Debt::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(TransactionCategory::class);
+    }
+
+    public function performer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'performed_by');
+    }
 
     /** İptal edilmemiş ve iptal kaydı olmayan hareketler: toplamlar yalnızca bunlardan hesaplanır. */
     public function scopeEffective(Builder $query): void
@@ -48,10 +75,10 @@ class CashTransaction extends Model
         $query->whereNull('reversed_at')->where('sub_type', '!=', 'reversal');
     }
 
-    /** Geçerli gelir/gider hareketleri: kasalar arası virmanlar gelir veya gider sayılmaz. */
+    /** Geçerli gelir/gider hareketleri: kasalar arası virmanlar ve açılış bakiyeleri gelir veya gider sayılmaz. */
     public function scopeOperating(Builder $query): void
     {
-        $query->effective()->where('sub_type', 'not like', 'transfer%');
+        $query->effective()->where('sub_type', 'not like', 'transfer%')->where('sub_type', '!=', 'opening');
     }
 
     public function isTransfer(): bool
@@ -70,5 +97,8 @@ class CashTransaction extends Model
         return 'M-'.str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
     }
 
-    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
+    public function apartment(): BelongsTo
+    {
+        return $this->belongsTo(Apartment::class);
+    }
 }

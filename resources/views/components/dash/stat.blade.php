@@ -1,36 +1,50 @@
-@props(['label', 'value', 'prev' => null, 'format' => 'money', 'invert' => false, 'note' => null, 'href' => null])
+@props([
+    'label',
+    'value' => 0,
+    'prev' => null,
+    'format' => 'money',
+    'invert' => false,
+    'note' => null,
+    'href' => null,
+    'icon' => 'wallet',
+    'progress' => null,
+    'ratio' => null,
+    'stagger' => 0,
+])
 @php
     $value = (float) $value;
-    $money = function (float $v): string {
-        [$int, $dec] = explode(',', number_format($v, 2, ',', '.'));
-        return '₺'.$int.'<span class="dec">,'.$dec.'</span>';
-    };
     $fmt = fn (float $v) => match ($format) {
-        'percent' => number_format($v, 1, ',', '.').'<span class="dec"> %</span>',
+        'percent' => number_format($v, 0, ',', '.').'%',
         'number' => number_format($v, 0, ',', '.'),
-        default => $money($v),
-    };
-    $pct = null;
-    if ($prev !== null && ! ((float) $prev == 0.0 && $value == 0.0)) {
-        $pct = $format === 'percent' ? $value - (float) $prev : ((float) $prev == 0.0 ? 100.0 : ($value - (float) $prev) / abs((float) $prev) * 100);
-    }
-    $good = $invert ? ($pct ?? 0) <= 0 : ($pct ?? 0) >= 0;
-    $plain = fn (float $v) => match ($format) {
-        'percent' => number_format($v, 1, ',', '.').'%',
-        'number' => number_format($v, 0, ',', '.'),
-        default => tl($v),
+        default => '₺'.number_format($v, 0, ',', '.'),
     };
     $tag = $href ? 'a' : 'div';
+    $pctBar = $progress !== null ? max(0, min(100, (float) $progress)) : null;
 @endphp
-<{{ $tag }} @if ($href) href="{{ $href }}" @endif class="flex min-w-0 flex-col border-b border-line px-4 py-5 transition-colors last:border-b-0 sm:px-6 lg:border-b-0 {{ $href ? 'hover:bg-slate-50/60' : '' }}">
-    <span class="text-[13px] font-medium text-ink">{{ $label }}</span>
-    <p class="mt-3.5 truncate text-[28px] font-bold leading-none tracking-[-0.03em] tabular-nums text-ink" data-count="{{ $value }}" data-format="{{ $format }}">{!! $fmt($value) !!}</p>
-    <div class="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
-        <span class="text-muted">{{ $note ?? ($prev !== null ? $plain((float) $prev).' geçen dönem' : 'tüm zamanlar') }}</span>
-        @if ($pct !== null)
-            <span class="inline-flex items-center gap-1 font-semibold {{ $good ? 'text-emerald-600' : 'text-rose-500' }}">
-                <x-icon :name="$pct >= 0 ? 'trending-up' : 'trending-down'" :size="14" />{{ $pct >= 0 ? '+' : '−' }} {{ number_format(abs($pct), 1, ',', '.') }}%
-            </span>
-        @endif
+<{{ $tag }} @if ($href) href="{{ $href }}" @endif style="--stagger: {{ (int) $stagger }}" class="spotlight-card reveal-up group flex min-h-[138px] min-w-0 flex-col justify-between rounded-[22px] border border-[#1f1f23] bg-[#141416] p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#2c2c34] hover:shadow-[0_14px_34px_rgba(0,0,0,0.45)]">
+    <div class="relative z-10 flex items-center justify-between gap-2">
+        <span class="text-xs font-medium text-[#8a8a93] transition-colors duration-200 group-hover:text-[#d4d4d8]">{{ $label }}</span>
+        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#26262c] bg-[#1a1a1f] text-[#71717a] transition-all duration-300 group-hover:scale-110 group-hover:border-[#3a3a44] group-hover:bg-[#23232a] group-hover:text-white">
+            <x-icon :name="$icon" :size="13" />
+        </span>
     </div>
+
+    @if ($ratio !== null)
+        <p class="relative z-10 my-2 truncate text-[28px] font-bold leading-none tracking-tight text-white tabular-nums">{{ $ratio }}</p>
+    @else
+        <p class="relative z-10 my-2 truncate text-[28px] font-bold leading-none tracking-tight text-white tabular-nums" data-count="{{ $value }}" data-format="{{ $format }}">{!! $fmt($value) !!}</p>
+    @endif
+
+    @if ($pctBar !== null)
+        <div class="relative z-10 flex items-center gap-3">
+            <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-[#1f1f23]">
+                <div class="grow-w h-full rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.45)]" style="width: {{ $pctBar }}%"></div>
+            </div>
+            <span class="text-[11px] font-medium text-[#71717a] tabular-nums transition-colors group-hover:text-[#a1a1aa]">{{ round($pctBar) }}%</span>
+        </div>
+    @else
+        <div class="relative z-10 flex items-center justify-between text-xs text-[#71717a] transition-colors group-hover:text-[#a1a1aa]">
+            <span>{{ $note ?? '0 kayıt' }}</span>
+        </div>
+    @endif
 </{{ $tag }}>

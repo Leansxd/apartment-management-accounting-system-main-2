@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Asset;
 use App\Models\BankStatementLine;
+use App\Models\CashTransaction;
 use App\Models\Debt;
 use App\Services\AccountingReportService;
 use App\Services\BankImportService;
@@ -65,6 +66,54 @@ class ManagementServicesTest extends TestCase
 
         $this->assertSame(250000, $rows[0]['amount']);
         $this->assertSame(-30050, $rows[1]['amount']);
+    }
+
+    public function test_banka_ekstresinde_islem_ile_baslayan_sutunlar_aciklamanin_yerine_gecmez(): void
+    {
+        $bank = app(BankImportService::class);
+
+        $dateAndDescription = $bank->parse("İşlem Tarihi;İşlem;Tutar\n01.02.2026;A-5 aidat;100,00\n");
+        $withTransactionType = $bank->parse("İşlem Tarihi;İşlem Türü;Açıklama;Tutar\n01.02.2026;Havale;A-5 aidat;100,00\n");
+
+        $this->assertSame('2026-02-01', $dateAndDescription[0]['date']);
+        $this->assertSame('A-5 aidat', $dateAndDescription[0]['description']);
+        $this->assertSame('A-5 aidat', $withTransactionType[0]['description']);
+    }
+
+    public function test_banka_satirindan_gelen_tahsilat_iptal_edilince_satir_yeniden_islenebilir(): void
+    {
+        $apt = $this->site(1);
+        $unit = $this->unit($apt);
+        $finance = app(FinanceService::class);
+        $bank = app(BankImportService::class);
+        $box = $this->cashbox($apt);
+        $finance->accrue($unit, ['description' => 'Aidat', 'amount' => 150000, 'due_date' => '2026-01-31']);
+        $bank->import($apt, $box, [['date' => '2026-02-03', 'description' => 'AIDAT', 'amount' => 150000, 'reference' => null]]);
+        $line = BankStatementLine::firstOrFail();
+        $line->update(['unit_id' => $unit->id]);
+        $bank->post($line);
+
+        $finance->reverse(CashTransaction::findOrFail($line->fresh()->cash_transaction_id), 'yanlış daire');
+
+        $this->assertSame('pending', $line->fresh()->status);
+        $this->assertNull($line->fresh()->cash_transaction_id);
+
+        $bank->post($line->fresh());
+
+        $this->assertSame('posted', $line->fresh()->status);
+        $this->assertEquals(1500, (float) $box->fresh()->balance);
+        $this->assertLedgerBalanced($apt);
+    }
+
+    public function test_uzun_banka_aciklamasi_kasa_hareketinde_255_karaktere_kisalir(): void
+    {
+        $apt = $this->site(1);
+        $bank = app(BankImportService::class);
+        $bank->import($apt, $this->cashbox($apt), [['date' => '2026-02-03', 'description' => str_repeat('x', 500), 'amount' => 10000, 'reference' => null]]);
+
+        $bank->post(BankStatementLine::firstOrFail());
+
+        $this->assertSame(255, mb_strlen(CashTransaction::firstOrFail()->description));
     }
 
     public function test_banka_ekstresinde_hatali_tarih_reddedilir(): void

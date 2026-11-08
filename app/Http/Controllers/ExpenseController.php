@@ -9,6 +9,7 @@ use App\Models\Vendor;
 use App\Services\FinanceService;
 use App\Support\Money;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /** Giderler (fatura onayı) ve tedarikçi firmalar */
@@ -40,23 +41,30 @@ class ExpenseController extends Controller
             'description' => ['required', 'string', 'max:200'],
             'invoice_no' => ['nullable', 'string', 'max:40'],
             'invoice_date' => ['nullable', 'date'],
+            'pay_now_cashbox_id' => ['nullable', Rule::exists('cashboxes', 'id')->where('apartment_id', $apartment->id)],
         ]);
+        $cashboxId = $data['pay_now_cashbox_id'] ?? null;
+        unset($data['pay_now_cashbox_id']);
         $net = $this->cents($data['amount']);
         $data['amount'] = Money::decimal($net);
         $data['total_amount'] = Money::decimal((int) round($net * (100 + (int) $data['vat_rate']) / 100));
-        $expense = $apartment->expenses()->create($data + ['created_by' => $request->user()->id]);
-        $finance->audit($apartment, $request->user(), 'CREATE_EXPENSE', 'EXPENSE', "expense:{$expense->id}",
-            ['description' => $expense->description, 'total' => $expense->total_amount]);
 
-        if ($request->filled('pay_now_cashbox_id')) {
-            $cashbox = $apartment->cashboxes()->find($request->integer('pay_now_cashbox_id'));
-            if ($cashbox) {
-                return $this->attempt(fn () => $finance->approveExpense($expense, $cashbox, $request->user()),
-                    'Gider kaydedildi ve kasadan ödendi.');
-            }
-        }
+        return $this->attempt(function () use ($apartment, $data, $cashboxId, $finance, $request) {
+            return DB::transaction(function () use ($apartment, $data, $cashboxId, $finance, $request) {
+                $expense = $apartment->expenses()->create($data + ['created_by' => $request->user()->id]);
+                $finance->audit($apartment, $request->user(), 'CREATE_EXPENSE', 'EXPENSE', "expense:{$expense->id}",
+                    ['description' => $expense->description, 'total' => $expense->total_amount]);
 
-        return back()->with('status', 'Gider onay bekliyor olarak kaydedildi.');
+                if ($cashboxId) {
+                    $cashbox = $apartment->cashboxes()->findOrFail($cashboxId);
+                    $finance->approveExpense($expense, $cashbox, $request->user());
+
+                    return 'Gider kaydedildi ve kasadan ödendi.';
+                }
+
+                return 'Gider onay bekliyor olarak kaydedildi.';
+            });
+        }, '');
     }
 
     public function approve(Request $request, Apartment $apartment, Expense $expense, FinanceService $finance)

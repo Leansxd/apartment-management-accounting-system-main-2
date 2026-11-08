@@ -5,7 +5,7 @@ use App\Http\Controllers\Api\ResidentController;
 use Illuminate\Support\Facades\Route;
 
 // Mobil (sakin) uygulaması API'si. Kimlik doğrulama: Authorization: Bearer <token> (Sanctum).
-Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:login');
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 
 Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {

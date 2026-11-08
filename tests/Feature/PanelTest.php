@@ -9,6 +9,7 @@ use App\Models\Member;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class PanelTest extends TestCase
@@ -16,6 +17,7 @@ class PanelTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Apartment $apartment;
 
     protected function setUp(): void
@@ -116,5 +118,77 @@ class PanelTest extends TestCase
         $member = Member::whereNull('user_id')->first();
         $this->actingAs($this->admin)->delete(route('site.members.destroy', [$this->apartment, $member]))->assertRedirect();
         $this->assertNull(Member::withTrashed()->find($member->id)->invite_code);
+    }
+
+    public function test_daire_etiketi_silme_onayindan_javascripte_tasamaz(): void
+    {
+        $this->apartment->units()->firstOrFail()->update(['unit_no' => "');alert(1)//"]);
+
+        $html = $this->actingAs($this->admin)->get(route('site.units.index', $this->apartment))->assertOk()->getContent();
+
+        preg_match('/onsubmit="(return confirm\([^"]*alert\(1\)[^"]*)"/', $html, $handler);
+        $this->assertStringNotContainsString("');alert", html_entity_decode($handler[1], ENT_QUOTES));
+    }
+
+    public function test_tc_kimlik_ve_davet_kodu_yalnizca_yonetici_rolune_gorunur(): void
+    {
+        $member = Member::whereNull('user_id')->firstOrFail();
+        $member->update(['id_number' => '12345678901']);
+        $viewer = $this->admin();
+        $this->apartment->managers()->attach($viewer, ['role' => 'viewer']);
+
+        $this->actingAs($viewer)->get(route('site.members.show', [$this->apartment, $member]))->assertOk()
+            ->assertDontSee('12345678901')->assertDontSee($member->invite_code);
+        $this->actingAs($viewer)->get(route('site.members.index', $this->apartment))->assertOk()->assertDontSee($member->invite_code);
+
+        $this->actingAs($this->admin)->get(route('site.members.show', [$this->apartment, $member]))->assertOk()
+            ->assertSee('12345678901')->assertSee($member->invite_code);
+    }
+
+    public function test_tc_kimlik_no_veritabaninda_sifreli_tutulur_ve_eski_kayitlar_sifrelenir(): void
+    {
+        $member = Member::firstOrFail();
+        DB::table('members')->update(['id_number' => null]);
+        DB::table('members')->where('id', $member->id)->update(['id_number' => '10987654321']);
+
+        (require database_path('migrations/2026_11_10_000500_encrypt_member_id_numbers.php'))->up();
+
+        $this->assertNotSame('10987654321', DB::table('members')->where('id', $member->id)->value('id_number'));
+        $this->assertSame('10987654321', $member->fresh()->id_number);
+    }
+
+    public function test_kullanici_detayi_bakanin_erisemedigi_siteyi_gostermez(): void
+    {
+        $viewer = $this->admin();
+        $shared = $this->site(1, $viewer);
+        $shared->update(['name' => 'Ortak Site']);
+        $target = $this->admin();
+        $shared->managers()->attach($target);
+        $this->site(1, $target)->update(['name' => 'Gizli Site']);
+
+        $this->actingAs($viewer)->get(route('users.show', $target))->assertOk()
+            ->assertSee('Ortak Site')->assertDontSee('Gizli Site');
+    }
+
+    public function test_guvenlik_basliklari_eklenir_hsts_yalnizca_https_te_gonderilir(): void
+    {
+        $response = $this->get('/login');
+
+        $response->assertHeader('X-Frame-Options', 'SAMEORIGIN');
+        $response->assertHeader('X-Content-Type-Options', 'nosniff');
+        $response->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+        $this->assertStringContainsString("frame-ancestors 'self'", $response->headers->get('Content-Security-Policy'));
+        $response->assertHeaderMissing('Strict-Transport-Security');
+
+        $this->get('https://localhost/login')->assertHeader('Strict-Transport-Security', 'max-age=31536000');
+    }
+
+    public function test_ayni_ipden_cok_hesap_denenince_giris_sinirlanir(): void
+    {
+        for ($attempt = 1; $attempt <= 20; $attempt++) {
+            $this->post('/login', ['email' => "deneme{$attempt}@test.dev", 'password' => 'YanlisSifre1'])->assertRedirect();
+        }
+
+        $this->post('/login', ['email' => 'deneme21@test.dev', 'password' => 'YanlisSifre1'])->assertTooManyRequests();
     }
 }

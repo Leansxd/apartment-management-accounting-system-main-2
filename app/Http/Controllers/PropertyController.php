@@ -12,7 +12,9 @@ class PropertyController extends Controller
 {
     public const FEATURES = ['Havuz', 'Otopark', 'Asansör', 'Güvenlik', 'Spor Salonu', 'Sauna', 'Jeneratör', 'Bahçe',
         'Klima', 'Doğalgaz', 'Deniz Manzarası', 'Çocuk Parkı'];
+
     public const FACADES = ['Kuzey', 'Güney', 'Doğu', 'Batı'];
+
     public const DISTANCES = ['Deniz', 'Merkez', 'Havalimanı', 'Hastane', 'Okul'];
 
     public function index(Request $request)
@@ -76,7 +78,7 @@ class PropertyController extends Controller
     {
         $data = $request->validate([
             'title' => ['required', 'string', 'max:150'],
-            'price' => ['nullable', 'numeric', 'min:0'],
+            'price' => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
             'location' => ['nullable', 'string', 'max:150'],
             'category' => ['required', Rule::in(Property::CATEGORIES)],
             'status' => ['required', Rule::in(array_keys(Property::STATUSES))],
@@ -87,7 +89,7 @@ class PropertyController extends Controller
             'bedrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
             'bathrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
             'balconies' => ['nullable', 'integer', 'min:0', 'max:50'],
-            'area' => ['nullable', 'numeric', 'min:0'],
+            'area' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'floor' => ['nullable', 'string', 'max:10'],
             'total_floors' => ['nullable', 'integer', 'min:0', 'max:200'],
             'year_built' => ['nullable', 'integer', 'min:1900', 'max:'.(now()->year + 5)],

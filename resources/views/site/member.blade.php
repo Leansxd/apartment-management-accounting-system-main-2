@@ -12,7 +12,10 @@
             @if ($member->user)
                 <p class="mt-2 text-sm font-medium">{{ $member->user->email }}</p><p class="text-xs text-slate-500">{{ $member->activated_at?->format('d.m.Y') }} tarihinde bağlandı</p>
             @else
-                <p class="mt-2 font-mono text-sm">{{ $member->invite_code }}</p><p class="text-xs text-slate-500">Davet kodu (henüz bağlanmadı)</p>
+                @can('view-member-secrets', $apartment)
+                    <p class="mt-2 font-mono text-sm">{{ $member->invite_code }}</p>
+                @endcan
+                <p class="text-xs text-slate-500">Davet kodu (henüz bağlanmadı)</p>
             @endif
         </div>
     </div>
@@ -27,7 +30,9 @@
                     <div><label class="label" for="full_name">Ad soyad</label><input class="input" id="full_name" name="full_name" value="{{ old('full_name', $member->full_name) }}" required></div>
                     <div><label class="label" for="phone">Telefon</label><input class="input" id="phone" name="phone" value="{{ old('phone', $member->phone) }}"></div>
                     <div><label class="label" for="email">E-posta</label><input class="input" id="email" type="email" name="email" value="{{ old('email', $member->email) }}"></div>
-                    <div><label class="label" for="id_number">TC kimlik no</label><input class="input" id="id_number" name="id_number" maxlength="11" value="{{ old('id_number', $member->id_number) }}"></div>
+                    @can('view-member-secrets', $apartment)
+                        <div><label class="label" for="id_number">TC kimlik no</label><input class="input" id="id_number" name="id_number" maxlength="11" value="{{ old('id_number', $member->id_number) }}"></div>
+                    @endcan
                     <div><label class="label" for="emergency_phone">Acil durum tel.</label><input class="input" id="emergency_phone" name="emergency_phone" value="{{ old('emergency_phone', $member->emergency_phone) }}"></div>
                     <div class="sm:col-span-2"><label class="label" for="address">Adres</label><input class="input" id="address" name="address" value="{{ old('address', $member->address) }}"></div>
                     <div class="sm:col-span-2"><label class="label" for="notes">Notlar</label><textarea class="input" id="notes" name="notes" rows="2">{{ old('notes', $member->notes) }}</textarea></div>

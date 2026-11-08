@@ -19,9 +19,7 @@ use Illuminate\Support\Str;
  */
 class BankImportService
 {
-    public function __construct(private FinanceService $finance)
-    {
-    }
+    public function __construct(private FinanceService $finance) {}
 
     /**
      * CSV metnini satırlara ayırır. Ayraç (; , sekme) ve başlıklar otomatik bulunur.
@@ -42,10 +40,21 @@ class BankImportService
 
         $delimiter = collect([';', ',', "\t"])->sortByDesc(fn ($d) => substr_count($lines[0], $d))->first();
         $header = array_map(fn ($h) => $this->normalize($h), str_getcsv($lines[0], $delimiter));
-        $col = fn (array $names) => collect($header)->search(fn ($h) => collect($names)->contains(fn ($n) => str_contains($h, $n)));
+        // Adlar öncelik sırasıyla aranır: "İşlem Tarihi" gibi başlıklar açıklama sütunu sanılmasın
+        $col = function (array $names, array $except = []) use ($header): int|false {
+            foreach ($names as $name) {
+                foreach ($header as $index => $title) {
+                    if (! in_array($index, $except, true) && str_contains($title, $name)) {
+                        return $index;
+                    }
+                }
+            }
+
+            return false;
+        };
 
         $date = $col(['tarih', 'date']);
-        $desc = $col(['aciklama', 'description', 'islem']);
+        $desc = $col(['aciklama', 'description', 'islem'], [$date]);
         $amount = $col(['tutar', 'amount']);
         $in = $col(['giris', 'gelen', 'alacak', 'credit']);
         $out = $col(['cikis', 'giden', 'borc', 'debit']);
@@ -93,6 +102,7 @@ class BankImportService
 
                 if (BankStatementLine::where('apartment_id', $apartment->id)->where('hash', $hash)->exists()) {
                     $stats['duplicates']++;
+
                     continue;
                 }
                 $unit = $row['amount'] > 0 ? $this->matchUnit($row['description'], $units) : null;

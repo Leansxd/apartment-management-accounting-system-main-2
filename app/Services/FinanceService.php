@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Apartment;
 use App\Models\AuditLog;
+use App\Models\BankStatementLine;
 use App\Models\Cashbox;
 use App\Models\CashTransaction;
 use App\Models\Debt;
@@ -155,6 +156,7 @@ class FinanceService
                 if ($def->calculation === 'sqm') {
                     if (! (float) $unit->gross_area) {
                         $report['skipped_no_area'][] = $unit->label();
+
                         continue;
                     }
                     $amount = (int) round($amount * (float) $unit->gross_area);
@@ -206,18 +208,30 @@ class FinanceService
 
     /**
      * Borcu siler. Tahsilat veya avans mahsubu yapılmış borç silinemez.
-     * Silinen tahakkuk için ters yevmiye kaydı atılır.
+     * Silinen tahakkuk için ters yevmiye kaydı atılır. Borca bağlı gecikme zamları da silinir;
+     * yalnızca gecikme zammı silinirse o ay ana borçta işaretlenir ve bir daha yazılmaz.
      */
     public function deleteDebt(Debt $debt, ?User $by = null): void
     {
         DB::transaction(function () use ($debt, $by) {
+            // Kilit sırası her zaman daire, ana borç, gecikme zammı (kilitlenmeyi önler)
+            Unit::whereKey($debt->unit_id)->lockForUpdate()->first();
+            $parent = $debt->kind === 'late_fee' && $debt->parent_debt_id
+                ? Debt::whereKey($debt->parent_debt_id)->lockForUpdate()->first()
+                : null;
             $debt = Debt::whereKey($debt->id)->lockForUpdate()->firstOrFail();
             $payments = DebtPayment::where('debt_id', $debt->id)->get();
             $cashPaid = $payments->where('type', 'collection')->sum(fn ($p) => Money::cents($p->amount));
             if ($cashPaid > 0 || (Money::cents($debt->paid_amount) > 0 && $payments->isEmpty())) {
-                throw new FinanceException('Bu borca '.Money::format($debt->paid_amount)
+                throw new FinanceException("\"{$debt->description}\" borcuna ".Money::format($debt->paid_amount)
                     .' tahsilat yapılmış; silmeden önce tahsilatı iptal edin.');
             }
+
+            $lateFees = Debt::where('parent_debt_id', $debt->id)->where('kind', 'late_fee')->orderBy('id')->get();
+            foreach ($lateFees as $lateFee) {
+                $this->deleteDebt($lateFee, $by);
+            }
+
             $amount = Money::cents($debt->amount);
             $label = $debt->unit?->label();
 
@@ -238,6 +252,13 @@ class FinanceService
                 'amount' => $debt->amount, 'unit' => $label, 'description' => $debt->description,
             ]);
             $debt->delete();
+
+            if ($parent && $debt->idempotency_key) {
+                $parent->update(['waived_late_fee_months' => [
+                    ...($parent->waived_late_fee_months ?? []),
+                    (int) Str::afterLast($debt->idempotency_key, ':'),
+                ]]);
+            }
         });
     }
 
@@ -373,6 +394,33 @@ class FinanceService
         });
     }
 
+    /** Yeni kasanın açılış bakiyesi: kasaya girer, karşılığı gelir değil açılış hesabıdır. @param int $amount kuruş */
+    public function recordOpeningBalance(Cashbox $cashbox, int $amount, ?User $by = null): CashTransaction
+    {
+        if ($amount <= 0) {
+            throw new FinanceException('Açılış bakiyesi 0\'dan büyük olmalıdır.');
+        }
+
+        return DB::transaction(function () use ($cashbox, $amount, $by) {
+            $cashbox = Cashbox::whereKey($cashbox->id)->lockForUpdate()->firstOrFail();
+            $cashbox->update(['balance' => Money::decimal(Money::cents($cashbox->balance) + $amount)]);
+
+            $tx = CashTransaction::create([
+                'apartment_id' => $cashbox->apartment_id, 'cashbox_id' => $cashbox->id, 'type' => 'income',
+                'sub_type' => 'opening', 'amount' => Money::decimal($amount),
+                'description' => 'Açılış bakiyesi', 'performed_by' => $by?->id,
+            ]);
+
+            $ref = "cash_tx:{$tx->id}";
+            $this->ledgerPair($cashbox->apartment_id, $ref, 'opening',
+                [LedgerEntry::CASH, $cashbox->id], [LedgerEntry::OPENING, null], $amount, 'Açılış bakiyesi');
+            $this->audit($cashbox->apartment, $by, 'OPENING_BALANCE', 'FINANCE', $ref,
+                ['cashbox' => $cashbox->name, 'amount' => Money::decimal($amount)]);
+
+            return $tx;
+        });
+    }
+
     /** Kasalar arası virman. @param int $amount kuruş */
     public function transfer(Cashbox $from, Cashbox $to, int $amount, ?string $description = null, ?User $by = null): void
     {
@@ -483,8 +531,9 @@ class FinanceService
             $start = CarbonImmutable::parse($debt->due_date)->addDays($apartment->late_fee_grace_days);
             $months = $start->lt($asOf) ? (int) floor($start->diffInMonths($asOf)) : 0;
             $amount = (int) round(Money::cents($debt->remaining_amount) * $rate / 100);
+            $waivedMonths = $debt->waived_late_fee_months ?? [];
             for ($n = 1; $n <= $months && $amount > 0; $n++) {
-                if (! $existing->has($key = "late:{$debt->id}:{$n}")) {
+                if (! $existing->has($key = "late:{$debt->id}:{$n}") && ! in_array($n, $waivedMonths, true)) {
                     $items->push(['debt' => $debt, 'month' => $n, 'amount' => $amount, 'key' => $key]);
                 }
             }
@@ -532,7 +581,8 @@ class FinanceService
     /**
      * Kasa hareketini iptal eder: yalnızca ters kayıt atılır, hiçbir kayıt silinmez.
      * Tahsilat iptalinde ödenen borçlar yeniden açılır ve avans geri alınır; gider ödemesi iptalinde
-     * gider tekrar onay bekler. Virmanlar iptal edilemez (ters virman yapılır).
+     * gider tekrar onay bekler. Hareket banka satırından geldiyse satır yeniden işlenebilir olur.
+     * Virmanlar iptal edilemez (ters virman yapılır).
      */
     public function reverse(CashTransaction $tx, string $reason, ?User $by = null): CashTransaction
     {
@@ -543,6 +593,10 @@ class FinanceService
             }
             if ($tx->isTransfer()) {
                 throw new FinanceException('Virman iptal edilemez; ters yönde yeni bir virman yapın.');
+            }
+            // Tahsilatla aynı kilit sırası: önce daire, sonra kasa
+            if ($tx->unit_id) {
+                Unit::whereKey($tx->unit_id)->lockForUpdate()->first();
             }
             $cashbox = Cashbox::whereKey($tx->cashbox_id)->lockForUpdate()->firstOrFail();
             $amount = Money::cents($tx->amount);
@@ -574,6 +628,7 @@ class FinanceService
                 ]);
             }
             $tx->update(['reversed_at' => now(), 'reversed_by' => $by?->id, 'reversal_reason' => $reason]);
+            BankStatementLine::where('cash_transaction_id', $tx->id)->update(['status' => 'pending', 'cash_transaction_id' => null]);
             $this->audit($tx->apartment, $by, 'REVERSE_TRANSACTION', 'FINANCE', "cash_tx:{$tx->id}",
                 ['amount' => Money::decimal($amount), 'reason' => $reason, 'type' => $tx->sub_type]);
 
@@ -591,6 +646,9 @@ class FinanceService
         foreach (DebtPayment::where('cash_transaction_id', $tx->id)->get() as $payment) {
             $debt = Debt::whereKey($payment->debt_id)->lockForUpdate()->first();
             if ($debt) {
+                if (Debt::where('parent_debt_id', $debt->id)->where('kind', 'installment')->exists()) {
+                    throw new FinanceException('Bu tahsilatın ait olduğu borç taksitlendirilmiş; önce taksitleri iptal edin.');
+                }
                 $debt->update([
                     'paid_amount' => Money::decimal(Money::cents($debt->paid_amount) - Money::cents($payment->amount)),
                     'remaining_amount' => Money::decimal(Money::cents($debt->remaining_amount) + Money::cents($payment->amount)),
@@ -703,6 +761,7 @@ class FinanceService
         }
 
         return DB::transaction(function () use ($debt, $count, $firstDue, $everyMonths, $by) {
+            Unit::whereKey($debt->unit_id)->lockForUpdate()->first();
             $debt = Debt::whereKey($debt->id)->lockForUpdate()->firstOrFail();
             $remaining = Money::cents($debt->remaining_amount);
             if ($debt->status !== Debt::PENDING || $remaining <= 0) {

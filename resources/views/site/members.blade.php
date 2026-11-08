@@ -31,8 +31,9 @@
             </form>
         </div>
         <div class="overflow-x-auto">
+            @php $canViewMemberSecrets = auth()->user()->can('view-member-secrets', $apartment); @endphp
             <table class="table">
-                <thead><tr><th>Daire</th><th>Ad Soyad</th><th>Tür</th><th>Telefon</th><th>Mobil</th><th>Davet Kodu</th><th></th></tr></thead>
+                <thead><tr><th>Daire</th><th>Ad Soyad</th><th>Tür</th><th>Telefon</th><th>Mobil</th>@if ($canViewMemberSecrets)<th>Davet Kodu</th>@endif<th></th></tr></thead>
                 <tbody>
                 @forelse ($members as $m)
                     <tr>
@@ -41,7 +42,7 @@
                         <td>{{ \App\Models\Member::TYPES[$m->type] ?? $m->type }}</td>
                         <td>{{ $m->phone ?: '—' }}</td>
                         <td>@if ($m->user_id)<span class="badge badge-green">Bağlı</span>@else<span class="badge badge-gray">Bekliyor</span>@endif</td>
-                        <td class="font-mono text-xs">{{ $m->user_id ? '—' : $m->invite_code }}</td>
+                        @if ($canViewMemberSecrets)<td class="font-mono text-xs">{{ $m->user_id ? '—' : $m->invite_code }}</td>@endif
                         <td class="text-right"><a class="btn btn-secondary btn-sm" href="{{ route('site.members.show', [$apartment, $m]) }}">Detay</a></td>
                     </tr>
                 @empty

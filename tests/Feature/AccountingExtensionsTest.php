@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\CashTransaction;
 use App\Models\Debt;
+use App\Models\LedgerEntry;
 use App\Services\FinanceException;
 use App\Services\FinanceService;
 use App\Support\Money;
@@ -58,6 +59,79 @@ class AccountingExtensionsTest extends TestCase
 
         // Gecikme zammının kendisine zam işletilmez
         $this->assertSame(0, $this->finance->pendingLateFees($apt->fresh(), CarbonImmutable::parse('2026-04-16'))->where('debt.kind', 'late_fee')->count());
+    }
+
+    public function test_silinen_gecikme_zammi_sonraki_calistirmada_yeniden_yazilmaz(): void
+    {
+        $apt = $this->site(1);
+        $apt->update(['late_fee_enabled' => true, 'late_fee_rate' => 5, 'late_fee_grace_days' => 0]);
+        $this->finance->accrue($this->unit($apt), $this->fields(100000, '2026-01-10'));
+        $asOf = CarbonImmutable::parse('2026-04-15');
+        $this->finance->runLateFees($apt->fresh(), $asOf);
+        $waived = Debt::where('idempotency_key', 'like', 'late:%:2')->firstOrFail();
+
+        $this->finance->deleteDebt($waived);
+        $second = $this->finance->runLateFees($apt->fresh(), $asOf);
+
+        $this->assertSame(0, $second['created']);
+        $this->assertModelMissing($waived);
+        $this->assertSame(2, Debt::where('kind', 'late_fee')->count());
+        $this->assertLedgerBalanced($apt);
+
+        $nextMonth = $this->finance->pendingLateFees($apt->fresh(), CarbonImmutable::parse('2026-05-15'));
+        $this->assertSame([4], $nextMonth->pluck('month')->all());
+    }
+
+    public function test_borc_silinince_odenmemis_gecikme_zamlari_da_ters_kayitla_silinir(): void
+    {
+        $apt = $this->site(1);
+        $apt->update(['late_fee_enabled' => true, 'late_fee_rate' => 5, 'late_fee_grace_days' => 0]);
+        $this->finance->accrue($this->unit($apt), $this->fields(100000, '2026-01-10'));
+        $this->finance->runLateFees($apt->fresh(), CarbonImmutable::parse('2026-03-15'));
+
+        $this->finance->deleteDebt(Debt::where('kind', 'due')->firstOrFail());
+
+        $this->assertSame(0, Debt::count());
+        $unitEntries = $apt->ledgerEntries()->where('account_name', LedgerEntry::UNIT);
+        $this->assertEquals(1100, (clone $unitEntries)->sum('debit'));
+        $this->assertEquals(1100, (clone $unitEntries)->sum('credit'));
+        $this->assertLedgerBalanced($apt);
+    }
+
+    public function test_gecikme_zammi_tahsil_edildiyse_ana_borc_silinemez_ve_hicbir_kayit_degismez(): void
+    {
+        $apt = $this->site(1);
+        $apt->update(['late_fee_enabled' => true, 'late_fee_rate' => 5, 'late_fee_grace_days' => 0]);
+        $unit = $this->unit($apt);
+        $this->finance->accrue($unit, $this->fields(100000, '2026-01-10'));
+        $this->finance->runLateFees($apt->fresh(), CarbonImmutable::parse('2026-02-15'));
+        $lateFee = Debt::where('kind', 'late_fee')->firstOrFail();
+        $this->finance->collect($unit, $this->cashbox($apt), 5000, null, null, $lateFee);
+
+        $this->assertThrows(
+            fn () => $this->finance->deleteDebt(Debt::where('kind', 'due')->firstOrFail()),
+            FinanceException::class,
+        );
+
+        $this->assertSame(2, Debt::count());
+        $this->assertLedgerBalanced($apt);
+    }
+
+    public function test_eski_acilis_bakiyeleri_ve_iptalleri_migration_ile_acilis_hesabina_tasinir(): void
+    {
+        $apt = $this->site(1);
+        $box = $this->cashbox($apt);
+        $opening = $this->finance->generalTransaction($box, 'income', 100000, 'Açılış bakiyesi');
+        $reversed = $this->finance->generalTransaction($box, 'income', 50000, 'Açılış bakiyesi');
+        $this->finance->reverse($reversed, 'hatalı giriş');
+        $rent = $this->finance->generalTransaction($box, 'income', 30000, 'Kira');
+
+        (require database_path('migrations/2026_11_10_000400_convert_opening_balances_to_equity.php'))->up();
+
+        $this->assertSame('opening', $opening->fresh()->sub_type);
+        $this->assertSame('general', $rent->fresh()->sub_type);
+        $this->assertSame(["cash_tx:{$rent->id}"], $apt->ledgerEntries()->where('account_name', LedgerEntry::INCOME)->pluck('reference')->all());
+        $this->assertLedgerBalanced($apt);
     }
 
     public function test_gecikme_zammi_kapaliyken_ve_ek_sure_icindeyken_islemez(): void

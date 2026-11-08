@@ -9,6 +9,7 @@ use App\Models\Unit;
 use App\Models\UnitGroup;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /** Bloklar, daireler (üniteler) ve daire grupları */
 class StructureController extends Controller
@@ -58,7 +59,7 @@ class StructureController extends Controller
             'block_id' => ['required', Rule::exists('blocks', 'id')->where('apartment_id', $apartment->id)->whereNull('deleted_at')],
             'from' => ['required', 'integer', 'min:1', 'max:5000'],
             'to' => ['required', 'integer', 'gte:from', 'max:5000'],
-            'gross_area' => ['nullable', 'numeric', 'min:0'],
+            'gross_area' => ['nullable', 'numeric', 'min:0', 'max:100000'],
         ]);
         if ($data['to'] - $data['from'] > 500) {
             return back()->with('error', 'Tek seferde en fazla 500 daire eklenebilir.');
@@ -84,11 +85,13 @@ class StructureController extends Controller
         return back()->with('status', 'Daire güncellendi.');
     }
 
-    /** Açık borcu olan daire silinemez; silinen dairenin geçmiş kayıtları korunur. */
     public function destroyUnit(Apartment $apartment, Unit $unit)
     {
         if ($unit->debts()->where('status', Debt::PENDING)->exists()) {
             return back()->with('error', 'Açık borcu olan daire silinemez.');
+        }
+        if ((float) $unit->credit_balance > 0) {
+            return back()->with('error', 'Avans bakiyesi bulunan daire silinemez. Önce avansı iade edin veya mahsup edin.');
         }
         if ($unit->members()->exists()) {
             return back()->with('error', 'Dairede kayıtlı üye var. Önce üyeyi silin.');
@@ -128,13 +131,13 @@ class StructureController extends Controller
             'usage_type' => ['required', Rule::in(['Konut', 'İşyeri', 'Depo', 'Otopark'])],
             'status' => ['required', Rule::in(['Dolu', 'Boş'])],
             'gross_area' => ['nullable', 'numeric', 'min:0', 'max:100000'],
-            'land_share' => ['nullable', 'numeric', 'min:0'],
+            'land_share' => ['nullable', 'numeric', 'min:0', 'max:999999'],
         ]);
 
         $duplicate = $apartment->units()->where('block_id', $data['block_id'])->where('unit_no', $data['unit_no'])
             ->when($unit, fn ($q) => $q->whereKeyNot($unit->id))->exists();
         if ($duplicate) {
-            throw \Illuminate\Validation\ValidationException::withMessages(['unit_no' => 'Bu blokta aynı numaralı daire zaten var.']);
+            throw ValidationException::withMessages(['unit_no' => 'Bu blokta aynı numaralı daire zaten var.']);
         }
 
         return $data;

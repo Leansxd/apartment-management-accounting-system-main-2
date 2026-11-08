@@ -7,16 +7,26 @@ Firebase hesabı veya anahtarı gerekmez; her şey yerelde çalışır.
 
 Gerekenler: PHP 8.2+ ve Composer (bu bilgisayarda Herd Lite ile kurulu: `C:\Users\PC\.config\herd-lite\bin`), Node.js (yalnızca arayüzü yeniden derlemek için).
 
-İlk kurulum (bir kez):
+İlk kurulum (bir kez): `kurulum.bat` dosyasını çift tıklayın. Bağımlılıkları kurar, arayüzü derler ve tarayıcıda kurulum sihirbazını açar.
+
+Sihirbaz, yönetici hesabı olmayan her kurulumda `/setup` adresinde açılır; her adımda alan ve düğmeleri vurgulayıp ne işe yaradığını anlatır. Kurulum bitince kalıcı olarak kapanır, ardından panel düğmeleri de tanıtılır. Sunucu internete açıksa kurulum bitene kadar `.env` içine `SETUP_TOKEN=gizli-kod` yazın; sihirbaz bu kodu sorar.
+
+Sihirbazın açılması için önce `composer install` ve `npm install && npm run build` yapılmış olmalıdır.
+
+Terminalden kurmak isterseniz:
 
 ```bash
-composer install
-copy .env.example .env
-php artisan key:generate
-php artisan migrate --seed
-php artisan storage:link
-npm install
-npm run build
+composer setup
+```
+
+```bash
+php artisan app:setup
+```
+
+`app:setup` tekrar çalıştırılabilir: `.env`, `APP_KEY`, veritabanı dosyası, migration ve depolama bağlantısını hazırlar, var olan veriye ve anahtara dokunmaz. Yönetici zaten varsa hesap adımını atlar. Soru sormadan kurulum:
+
+```bash
+php artisan app:setup -n --name="Ad Soyad" --email=siz@ornek.com --password="GucluSifre123" --site="Site Adı" --code=ABC --blocks=A,B
 ```
 
 Çalıştırma:
@@ -27,23 +37,16 @@ php artisan serve
 
 Tarayıcıda http://localhost:8000 adresini açın.
 
-Demo hesaplar (`--seed` ile oluşur, yalnızca yerel deneme içindir):
+Demo hesaplar (`php artisan app:setup --demo` ile oluşur, yalnızca yerel deneme içindir; canlı ortamda komut reddedilir):
 
 | Rol | E-posta | Şifre |
 | --- | --- | --- |
 | Süper admin (panel) | admin@demo.test | password |
 | Sakin (mobil API) | sakin@demo.test | password |
 
-Demo verisi olmadan temiz başlamak ve kendi yöneticinizi oluşturmak için:
-
-```bash
-php artisan migrate:fresh
-php artisan app:make-admin siz@ornek.com --create --password="GucluSifre123" --super
-```
-
 ### MySQL (XAMPP) kullanmak isterseniz
 
-`.env` içinde `DB_CONNECTION=mysql` yapıp `DB_HOST=127.0.0.1`, `DB_PORT=3306`, `DB_DATABASE=memoshome`, `DB_USERNAME=root`, `DB_PASSWORD=` ayarlayın, phpMyAdmin'de `memoshome` veritabanını oluşturun ve `php artisan migrate --seed` çalıştırın.
+`.env` içinde `DB_CONNECTION=mysql` yapıp `DB_HOST=127.0.0.1`, `DB_PORT=3306`, `DB_DATABASE=memoshome`, `DB_USERNAME=root`, `DB_PASSWORD=` ayarlayın, phpMyAdmin'de `memoshome` veritabanını oluşturun ve `php artisan app:setup` çalıştırın.
 
 ## Testler
 
