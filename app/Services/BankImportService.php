@@ -5,6 +5,10 @@ namespace App\Services;
 use App\Models\Apartment;
 use App\Models\BankStatementLine;
 use App\Models\Cashbox;
+use App\Models\CashTransaction;
+use App\Models\DebtPayment;
+use App\Models\Expense;
+use App\Models\LedgerEntry;
 use App\Models\Unit;
 use App\Models\User;
 use App\Support\Money;
@@ -71,8 +75,8 @@ class BankImportService
                 throw new FinanceException('Satır '.($n + 2).': tarih anlaşılamadı ("'.($cells[$date] ?? '').'").');
             }
             $cents = $amount !== false
-                ? Money::parse($cells[$amount] ?? '')
-                : Money::parse($cells[$in] ?? '') - abs(Money::parse($cells[$out] ?? ''));
+                ? Money::parseStatementAmount($cells[$amount] ?? '')
+                : abs(Money::parseStatementAmount($cells[$in] ?? '')) - abs(Money::parseStatementAmount($cells[$out] ?? ''));
             if ($cents === 0) {
                 continue;
             }
@@ -121,8 +125,8 @@ class BankImportService
     }
 
     /**
-     * Açıklamadan daireyi bulur: önce "A-5 / A5 / A 5" gibi daire etiketi, sonra üye adı.
-     * Birden fazla daire eşleşirse (belirsiz) eşleştirme yapılmaz.
+     * Açıklamadan daireyi bulur: önce "A-5 / A5 / A 5 / Daire 5" gibi daire etiketi, sonra üye adının tüm kelimeleri.
+     * "Dekont no 12" gibi belge numaraları daire sayılmaz. Birden fazla daire eşleşirse (belirsiz) eşleştirme yapılmaz.
      *
      * @param  Collection<int, Unit>  $units  block ve members yüklü
      */
@@ -130,33 +134,40 @@ class BankImportService
     {
         $text = ' '.$this->normalize($description).' ';
 
-        $byLabel = $units->filter(function (Unit $u) use ($text) {
+        $byLabel = $units->filter(function (Unit $u) use ($text, $units) {
             $block = preg_quote($this->normalize((string) $u->block?->name), '/');
             $no = preg_quote($this->normalize($u->unit_no), '/');
 
             return (bool) preg_match("/(?<![a-z0-9]){$block}\\s*[-\\/. ]?\\s*{$no}(?![a-z0-9])/", $text)
-                || (bool) preg_match("/(?<![a-z0-9])(daire|no|d)\\s*[:.]?\\s*{$no}(?![a-z0-9])/", $text) && $units->where('unit_no', $u->unit_no)->count() === 1;
+                || (bool) preg_match("/(?<![a-z0-9])(?:daire(?:\\s*no)?\\s*[:.]?|d\\s*[:.])\\s*{$no}(?![a-z0-9])/", $text) && $units->where('unit_no', $u->unit_no)->count() === 1;
         });
         if ($byLabel->count() === 1) {
             return $byLabel->first();
         }
 
-        $byName = $units->filter(fn (Unit $u) => $u->members->contains(function ($m) use ($text) {
-            $parts = array_filter(explode(' ', $this->normalize($m->full_name)), fn ($p) => mb_strlen($p) > 1);
+        $words = $this->words($description);
+        $byName = $units->filter(fn (Unit $u) => $u->members->contains(function ($m) use ($words) {
+            $parts = array_filter($this->words($m->full_name), fn ($p) => mb_strlen($p) > 1);
 
-            return count($parts) >= 2 && collect($parts)->every(fn ($p) => str_contains($text, " {$p} ") || str_contains($text, " {$p}"));
+            return count($parts) >= 2 && array_diff($parts, $words) === [];
         }));
 
         return $byName->count() === 1 ? $byName->first() : null;
+    }
+
+    /** @return list<string> sadeleştirilmiş metnin tam kelimeleri */
+    private function words(?string $text): array
+    {
+        return preg_split('/[^a-z0-9]+/', $this->normalize($text), -1, PREG_SPLIT_NO_EMPTY);
     }
 
     /**
      * Satırı kasa hareketine dönüştürür. Gelen para eşleşen daireye tahsilat olur (borçlara dağıtılır);
      * eşleşmeyen gelen para / giden para genel gelir / gider olarak yazılır.
      */
-    public function post(BankStatementLine $line, ?int $categoryId = null, ?User $by = null): void
+    public function post(BankStatementLine $line, ?int $categoryId = null, ?User $by = null, ?string $exchangeRate = null, ?Expense $expense = null): void
     {
-        DB::transaction(function () use ($line, $categoryId, $by) {
+        DB::transaction(function () use ($line, $categoryId, $by, $exchangeRate, $expense) {
             $line = BankStatementLine::whereKey($line->id)->lockForUpdate()->firstOrFail();
             if ($line->status !== 'pending') {
                 throw new FinanceException('Bu satır zaten işlenmiş.');
@@ -165,13 +176,60 @@ class BankImportService
             $cashbox = $line->cashbox;
             $text = trim(($line->reference ? "[{$line->reference}] " : '').$line->description);
 
-            if ($cents > 0 && $line->unit_id) {
-                $tx = $this->finance->collect($line->unit, $cashbox, $cents, "Banka: {$text}", $by);
-            } else {
-                $tx = $this->finance->generalTransaction($cashbox, $cents > 0 ? 'income' : 'expense', abs($cents), "Banka: {$text}", $categoryId, $by);
+            $this->finance->assertPeriodOpen($line->apartment, $line->line_date);
+            if ($expense && ($cents > 0 || $expense->apartment_id !== $line->apartment_id)) {
+                throw new FinanceException('Yalnızca giden satır, bu siteye ait bir gidere bağlanabilir.');
             }
+
+            if ($cents > 0 && $line->unit_id) {
+                $tx = $this->finance->collect($line->unit, $cashbox, $cents, "Banka: {$text}", $by, null, 'collection', $exchangeRate);
+            } elseif ($expense) {
+                $tx = $this->finance->payExpense($expense, $cashbox, $this->expenseShare($cashbox, $cents, $exchangeRate), $by, $exchangeRate);
+            } else {
+                $tx = $this->finance->generalTransaction($cashbox, $cents > 0 ? 'income' : 'expense', abs($cents), "Banka: {$text}", $categoryId, $by, $exchangeRate);
+            }
+            $this->backdate($tx, $line);
             $line->update(['status' => 'posted', 'cash_transaction_id' => $tx->id]);
         });
+    }
+
+    /**
+     * Ekstreyle kasa defterinin farkı: kasada kayıtlı ama hiçbir ekstre satırına bağlanmamış hareketler
+     * (ekstrenin kapsadığı tarih aralığında; virman, kur farkı, açılış ve iptaller hariç).
+     *
+     * @return Collection<int, CashTransaction>
+     */
+    public function unmatchedCashTransactions(Cashbox $cashbox): Collection
+    {
+        $range = BankStatementLine::where('cashbox_id', $cashbox->id)->selectRaw('MIN(line_date) first_date, MAX(line_date) last_date')->first();
+        if (! $range?->first_date) {
+            return collect();
+        }
+
+        return CashTransaction::where('cashbox_id', $cashbox->id)->whereNull('reversed_at')
+            ->whereNotIn('sub_type', ['opening', 'fx_difference', 'reversal', 'transfer_in', 'transfer_out'])
+            ->whereBetween('created_at', [Carbon::parse($range->first_date)->startOfDay(), Carbon::parse($range->last_date)->endOfDay()])
+            ->whereNotIn('id', BankStatementLine::whereNotNull('cash_transaction_id')->select('cash_transaction_id'))
+            ->orderBy('created_at')->get();
+    }
+
+    /** Gider TL tutarlıdır: TL kasada satır tutarı, döviz kasasında satır tutarının verilen kurdaki TL karşılığı. */
+    private function expenseShare(Cashbox $cashbox, int $cents, ?string $exchangeRate): int
+    {
+        return $cashbox->isForeign() ? Money::convert(abs($cents), (string) $exchangeRate) : abs($cents);
+    }
+
+    /** Ekstre satırı kendi tarihinde gerçekleşmiştir: kasa hareketi ve yevmiye kayıtları o güne yazılır (gelecek tarih bugün sayılır). */
+    private function backdate(CashTransaction $tx, BankStatementLine $line): void
+    {
+        $date = Carbon::parse($line->line_date);
+        if ($date->isToday() || $date->isFuture()) {
+            return;
+        }
+        $when = $date->setTimeFrom(now());
+        CashTransaction::whereKey($tx->id)->update(['created_at' => $when]);
+        LedgerEntry::where('reference', "cash_tx:{$tx->id}")->update(['created_at' => $when]);
+        DebtPayment::where('cash_transaction_id', $tx->id)->update(['created_at' => $when]);
     }
 
     /** Daire eşleşmesi olan bekleyen gelen satırları toplu işler. @return array{posted: int, failed: array<int, string>} */
