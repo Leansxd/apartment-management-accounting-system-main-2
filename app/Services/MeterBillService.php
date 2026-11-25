@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Apartment;
+use App\Models\Debt;
 use App\Models\MeterBill;
 use App\Models\MeterReading;
 use App\Models\Unit;
@@ -17,9 +18,7 @@ use Illuminate\Support\Facades\DB;
  */
 class MeterBillService
 {
-    public function __construct(private FinanceService $finance)
-    {
-    }
+    public function __construct(private FinanceService $finance) {}
 
     /**
      * Önizleme: daire başına ağırlık ve pay.
@@ -62,12 +61,32 @@ class MeterBillService
     }
 
     /**
+     * Dağıtılmış faturayı iptal eder: tüm paylar ters kayıtla silinir.
+     * Bir daireden tahsilat alınmışsa hiçbiri silinmez.
+     */
+    public function cancel(MeterBill $bill, ?User $by = null): int
+    {
+        return DB::transaction(function () use ($bill, $by) {
+            $debts = Debt::where('apartment_id', $bill->apartment_id)->where('distribution_id', "meter:{$bill->id}")->get();
+            foreach ($debts as $debt) {
+                $this->finance->deleteDebt($debt, $by);
+            }
+            $this->finance->audit($bill->apartment, $by, 'CANCEL_METER_BILL', 'DEBT', "meter_bill:{$bill->id}",
+                ['type' => $bill->meter_type, 'total' => $bill->total_amount, 'units' => $debts->count(), 'description' => $bill->description]);
+            $bill->delete();
+
+            return $debts->count();
+        });
+    }
+
+    /**
      * Faturayı dairelere borç olarak yazar.
      *
      * @return array{bill: MeterBill, created: int}
      */
     public function distribute(Apartment $apartment, array $data, ?User $by = null): array
     {
+        $this->finance->assertPeriodOpen($apartment, $data['due_date']);
         $total = Money::cents($data['total_amount']);
         $rows = $this->preview($apartment, $data['meter_type'], $data['method'], $data['period_from'], $data['period_to'], $total);
         $category = $apartment->categories()->firstOrCreate(['name' => $data['meter_type'], 'type' => 'income']);
