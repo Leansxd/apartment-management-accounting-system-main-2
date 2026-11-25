@@ -12,10 +12,12 @@ use App\Models\DebtPayment;
 use App\Models\DuesDefinition;
 use App\Models\Expense;
 use App\Models\LedgerEntry;
+use App\Models\Member;
 use App\Models\Unit;
 use App\Models\User;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +30,9 @@ use Illuminate\Support\Str;
  */
 class FinanceService
 {
+    /** decimal(14,2) kolonlarına sığan en büyük tutar (kuruş) */
+    private const MAX_CENTS = 99_999_999_999_999;
+
     // ----------------------------------------------------------------- TAHAKKUK
 
     /**
@@ -35,7 +40,8 @@ class FinanceService
      * $key verilirse aynı anahtarla ikinci çağrı borç üretmez ('exists' döner).
      *
      * @param  array{description:string, amount:int, due_date:string|\DateTimeInterface, category_id?:int|null,
-     *     category_name?:string, period?:string|null, distribution_id?:string|null, dues_definition_id?:int|null}  $fields  amount kuruş
+     *     category_name?:string, period?:string|null, distribution_id?:string|null, dues_definition_id?:int|null,
+     *     responsible?:string|null}  $fields  amount kuruş; responsible: owner | tenant | null (daire geneli)
      * @return 'created'|'exists'
      */
     public function accrue(Unit $unit, array $fields, ?string $key = null): string
@@ -71,7 +77,9 @@ class FinanceService
                     'distribution_id' => $fields['distribution_id'] ?? null,
                     'dues_definition_id' => $fields['dues_definition_id'] ?? null,
                     'kind' => $fields['kind'] ?? 'due',
+                    'responsible' => $fields['responsible'] ?? null,
                     'parent_debt_id' => $fields['parent_debt_id'] ?? null,
+                    'expense_id' => $fields['expense_id'] ?? null,
                     'idempotency_key' => $key,
                 ]);
 
@@ -112,6 +120,7 @@ class FinanceService
         if ($units->isEmpty()) {
             throw new FinanceException('Hedef daire seçilmedi.');
         }
+        $this->assertPeriodOpen($apartment, $fields['due_date']);
         $fields['distribution_id'] = (string) Str::uuid();
         $report = ['created' => 0, 'failed' => []];
 
@@ -133,25 +142,45 @@ class FinanceService
 
     /**
      * Aktif aidat tanımlarından dönem borçlarını üretir. Borç anahtarı (dönem + tanım + daire)
-     * sabittir: aynı dönemi tekrar çalıştırmak mükerrer borç oluşturmaz.
+     * sabittir: aynı dönemi tekrar çalıştırmak mükerrer borç oluşturmaz. Silinerek vazgeçilen borçlar
+     * yeniden yazılmaz; $restoreWaived verilirse bu dönemin silinen borçları da üretilir.
      *
-     * @return array{created:int, skipped:int, failed:array, skipped_no_area:array<int,string>}
+     * @return array{created:int, skipped:int, waived:int, failed:array, skipped_no_area:array<int,string>}
      */
-    public function generateDues(Apartment $apartment, string $period, ?User $by = null): array
+    public function generateDues(Apartment $apartment, string $period, ?User $by = null, bool $restoreWaived = false): array
     {
         if (! preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period)) {
             throw new FinanceException('Dönem YYYY-AA biçiminde olmalıdır.');
         }
+        $this->assertPeriodOpen($apartment, CarbonImmutable::parse("{$period}-01")->endOfMonth());
         $definitions = $apartment->duesDefinitions()->where('is_active', true)->with('category')->get();
         if ($definitions->isEmpty()) {
             throw new FinanceException('Aktif aidat / borç tanımı bulunamadı.');
         }
 
         $units = $apartment->units()->with('block')->get();
-        $report = ['created' => 0, 'skipped' => 0, 'failed' => [], 'skipped_no_area' => []];
+        $report = ['created' => 0, 'skipped' => 0, 'waived' => 0, 'failed' => [], 'skipped_no_area' => []];
 
         foreach ($definitions as $def) {
-            foreach ($this->targetsOf($def, $units) as $unit) {
+            if ($restoreWaived) {
+                $def->update(['waived_unit_periods' => array_values(array_filter($def->waived_unit_periods ?? [],
+                    fn (string $waived) => ! str_starts_with($waived, "{$period}:")))]);
+            }
+            $waivedUnitPeriods = $def->waived_unit_periods ?? [];
+            $targets = $this->targetsOf($def, $units);
+            // Arsa payında tutar, tanımın toplamıdır: arsa payı girili hedef dairelere oranla bölünür (kuruş kaybı olmadan)
+            $landShares = $def->calculation === 'land_share'
+                ? Money::allocate(Money::cents($def->amount), $targets->filter(fn (Unit $u) => (float) $u->land_share > 0)
+                    ->mapWithKeys(fn (Unit $u) => [$u->id => (float) $u->land_share])->all())
+                : [];
+
+            foreach ($targets as $unit) {
+                if (in_array("{$period}:{$unit->id}", $waivedUnitPeriods, true)) {
+                    $report['waived']++;
+
+                    continue;
+                }
+
                 $amount = Money::cents($def->amount);
                 if ($def->calculation === 'sqm') {
                     if (! (float) $unit->gross_area) {
@@ -160,6 +189,13 @@ class FinanceService
                         continue;
                     }
                     $amount = (int) round($amount * (float) $unit->gross_area);
+                } elseif ($def->calculation === 'land_share') {
+                    if (! isset($landShares[$unit->id])) {
+                        $report['skipped_no_area'][] = $unit->label();
+
+                        continue;
+                    }
+                    $amount = $landShares[$unit->id];
                 }
                 if ($amount <= 0) {
                     continue;
@@ -174,6 +210,7 @@ class FinanceService
                         'category_id' => $def->category_id,
                         'category_name' => $def->category?->name ?? 'Aidat',
                         'dues_definition_id' => $def->id,
+                        'responsible' => $def->responsible,
                     ], "dues:{$apartment->id}:{$period}:{$def->id}:{$unit->id}");
                     $result === 'created' ? $report['created']++ : $report['skipped']++;
                 } catch (FinanceException $e) {
@@ -183,7 +220,10 @@ class FinanceService
             $def->update(['last_run_period' => $period, 'last_run_at' => now()]);
         }
 
-        $this->audit($apartment, $by, 'GENERATE_DUES', 'DEBT', $period, $report);
+        // Her gece çalışan otomatik işlem, değişiklik olmadıkça denetim kaydı yazmaz
+        if ($by || $report['created'] || $report['failed']) {
+            $this->audit($apartment, $by, 'GENERATE_DUES', 'DEBT', $period, $report);
+        }
 
         return $report;
     }
@@ -208,11 +248,13 @@ class FinanceService
 
     /**
      * Borcu siler. Tahsilat veya avans mahsubu yapılmış borç silinemez.
-     * Silinen tahakkuk için ters yevmiye kaydı atılır. Borca bağlı gecikme zamları da silinir;
+     * Silinen tahakkuk için ters yevmiye kaydı atılır. Borca bağlı gecikme zamları ve taksitler de silinir (taksiti tahsil edilmişse hiçbiri silinmez);
      * yalnızca gecikme zammı silinirse o ay ana borçta işaretlenir ve bir daha yazılmaz.
+     * Aidat borcu silinirse dönem + daire tanımda işaretlenir, aidat motoru onu yeniden üretmez.
      */
     public function deleteDebt(Debt $debt, ?User $by = null): void
     {
+        $this->assertDebtPeriodOpen($debt);
         DB::transaction(function () use ($debt, $by) {
             // Kilit sırası her zaman daire, ana borç, gecikme zammı (kilitlenmeyi önler)
             Unit::whereKey($debt->unit_id)->lockForUpdate()->first();
@@ -230,6 +272,10 @@ class FinanceService
             $lateFees = Debt::where('parent_debt_id', $debt->id)->where('kind', 'late_fee')->orderBy('id')->get();
             foreach ($lateFees as $lateFee) {
                 $this->deleteDebt($lateFee, $by);
+            }
+
+            foreach (Debt::where('parent_debt_id', $debt->id)->where('kind', 'installment')->orderBy('id')->get() as $installment) {
+                $this->deleteDebt($installment, $by);
             }
 
             $amount = Money::cents($debt->amount);
@@ -259,28 +305,124 @@ class FinanceService
                     (int) Str::afterLast($debt->idempotency_key, ':'),
                 ]]);
             }
+
+            if ($debt->dues_definition_id && str_starts_with((string) $debt->idempotency_key, 'dues:')) {
+                $definition = DuesDefinition::whereKey($debt->dues_definition_id)->lockForUpdate()->first();
+                $definition?->update(['waived_unit_periods' => [
+                    ...($definition->waived_unit_periods ?? []),
+                    "{$debt->period}:{$debt->unit_id}",
+                ]]);
+            }
+        });
+    }
+
+    /**
+     * Açık borcu düzenler. Tutar veya kategori değişirse eski tahakkuk ters kayıtla kapatılır, yenisi yazılır.
+     * Ödeme alınmış borçta yalnızca açıklama ve vade değişebilir.
+     *
+     * @param  array{description: string, due_date: string, amount?: int, category_id?: int|null, category_name?: string}  $fields  amount kuruş
+     */
+    public function updateDebt(Debt $debt, array $fields, ?User $by = null): void
+    {
+        DB::transaction(function () use ($debt, $fields, $by) {
+            Unit::whereKey($debt->unit_id)->lockForUpdate()->first();
+            $debt = Debt::whereKey($debt->id)->lockForUpdate()->firstOrFail();
+            if ($debt->status === Debt::PAID) {
+                throw new FinanceException('Kapanmış borç düzenlenemez.');
+            }
+            if ($debt->kind === 'late_fee') {
+                throw new FinanceException('Gecikme zammı düzenlenemez; gerekirse silin.');
+            }
+            $this->assertDebtPeriodOpen($debt);
+            $this->assertPeriodOpen($debt->apartment, $fields['due_date']);
+
+            $oldAmount = Money::cents($debt->amount);
+            $newAmount = $fields['amount'] ?? $oldAmount;
+            $newCategoryId = array_key_exists('category_id', $fields) ? $fields['category_id'] : $debt->category_id;
+            $isFinancialChange = $newAmount !== $oldAmount || $newCategoryId !== $debt->category_id;
+
+            if ($isFinancialChange) {
+                if (Money::cents($debt->paid_amount) > 0) {
+                    throw new FinanceException('Ödeme alınmış borcun tutarı ve kategorisi değiştirilemez; önce ödemeyi iptal edin.');
+                }
+                if (Debt::where('parent_debt_id', $debt->id)->where('kind', 'late_fee')->exists()) {
+                    throw new FinanceException('Bu borca gecikme zammı yazılmış; tutarı değiştirmeden önce zammı silin.');
+                }
+                if ($newAmount <= 0) {
+                    throw new FinanceException('Borç tutarı 0\'dan büyük olmalıdır.');
+                }
+                $label = $debt->unit?->label();
+                $this->ledgerPair($debt->apartment_id, "debt:{$debt->id}", 'accrual_reversal',
+                    [LedgerEntry::INCOME, $debt->category_id], [LedgerEntry::UNIT, $debt->unit_id],
+                    $oldAmount, trim("Tahakkuk Düzeltme İptali: {$label} {$debt->description}"));
+                $this->ledgerPair($debt->apartment_id, "debt:{$debt->id}", 'accrual',
+                    [LedgerEntry::UNIT, $debt->unit_id], [LedgerEntry::INCOME, $newCategoryId],
+                    $newAmount, trim("Tahakkuk: {$label} {$fields['description']}"));
+            }
+
+            $debt->fill([
+                'description' => $fields['description'], 'due_date' => $fields['due_date'],
+                'amount' => Money::decimal($newAmount), 'remaining_amount' => Money::decimal($newAmount - Money::cents($debt->paid_amount)),
+                'category_id' => $newCategoryId, 'category_name' => $fields['category_name'] ?? $debt->category_name,
+                'responsible' => array_key_exists('responsible', $fields) ? $fields['responsible'] : $debt->responsible,
+            ]);
+            if (! $debt->isDirty()) {
+                return;
+            }
+            $changes = collect($debt->getDirty())->map(fn ($value, $field) => ['old' => $debt->getRawOriginal($field), 'new' => $value])->all();
+            $debt->save();
+            $this->audit($debt->apartment, $by, 'UPDATE_DEBT', 'DEBT', "debt:{$debt->id}", ['changes' => $changes]);
         });
     }
 
     // ----------------------------------------------------------------- TAHSİLAT
 
     /**
-     * Daireden tahsilat. Tutar önce (varsa) seçilen borca, sonra dairenin diğer açık
-     * borçlarına en eski vadeden başlayarak dağıtılır; artan kısım daireye avans yazılır.
+     * Daireden tek parça tahsilat.
      *
-     * @param  int  $amount  kuruş
+     * @param  int  $amount  kasanın para birimi cinsinden kuruş
+     * @param  string|null  $exchangeRate  döviz kasası için 1 birimin TRY karşılığı
      */
     public function collect(Unit $unit, Cashbox $cashbox, int $amount, ?string $description = null,
-        ?User $by = null, ?Debt $preferred = null, string $subType = 'collection'): CashTransaction
+        ?User $by = null, ?Debt $preferred = null, string $subType = 'collection', ?string $exchangeRate = null): CashTransaction
     {
-        if ($amount <= 0) {
-            throw new FinanceException('Tahsilat tutarı 0\'dan büyük olmalıdır.');
-        }
-        $this->assertSameApartment($unit->apartment_id, $cashbox, $preferred);
+        return $this->collectParts($unit, [[
+            'cashbox' => $cashbox, 'amount' => $amount, 'method' => $subType, 'exchange_rate' => $exchangeRate,
+        ]], $description, $by, $preferred)->first();
+    }
 
-        return DB::transaction(function () use ($unit, $cashbox, $amount, $description, $by, $preferred, $subType) {
+    /**
+     * Daireden parçalı tahsilat: her parça ayrı kasaya, kendi para birimi ve kuruyla girer. Parçaların TRY
+     * karşılığı önce elle tutar girilen borçlara ($allocations), sonra (varsa) seçilen borca, sonra dairenin diğer
+     * açık borçlarına en eski vadeden başlayarak dağıtılır; artan kısım TRY olarak daireye avans yazılır.
+     * Ödeyen sakin seçilirse otomatik dağıtım yalnızca onun sorumlu olduğu ve daire geneli borçlara yapılır.
+     * Bir parça hatalıysa hiçbiri kaydedilmez.
+     *
+     * @param  list<array{cashbox: Cashbox, amount: int, method?: string, exchange_rate?: string|null}>  $parts  amount kasanın para birimi cinsinden kuruş
+     * @param  array<int, int>  $allocations  borç id => bu ödemeden kapatılacak TL kuruş
+     * @return Collection<int, CashTransaction> parça başına bir kasa hareketi
+     */
+    public function collectParts(Unit $unit, array $parts, ?string $description = null, ?User $by = null, ?Debt $preferred = null,
+        ?Member $payer = null, array $allocations = []): Collection
+    {
+        if ($payer && $payer->unit_id !== $unit->id) {
+            throw new FinanceException('Ödeyen kişi bu dairenin sakini değil.');
+        }
+        if ($parts === []) {
+            throw new FinanceException('En az bir ödeme parçası girilmelidir.');
+        }
+        foreach ($parts as $part) {
+            if ($part['amount'] <= 0) {
+                throw new FinanceException('Tahsilat tutarı 0\'dan büyük olmalıdır.');
+            }
+            $this->assertSameApartment($unit->apartment_id, $part['cashbox'], $preferred);
+        }
+
+        return DB::transaction(function () use ($unit, $parts, $description, $by, $preferred, $payer, $allocations) {
             $unit = Unit::whereKey($unit->id)->lockForUpdate()->firstOrFail();
-            $cashbox = Cashbox::whereKey($cashbox->id)->lockForUpdate()->firstOrFail();
+            $cashboxes = Cashbox::whereIn('id', array_map(fn (array $part) => $part['cashbox']->id, $parts))
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $cashboxes->each(fn (Cashbox $box) => $this->assertCashboxActive($box));
 
             $open = Debt::where('unit_id', $unit->id)->where('status', Debt::PENDING)
                 ->orderBy('due_date')->orderBy('id')->lockForUpdate()->get();
@@ -288,98 +430,158 @@ class FinanceService
                 $open = $open->sortBy(fn (Debt $d) => $d->id === $preferred->id ? 0 : 1, SORT_REGULAR, false)->values();
             }
 
-            $label = $unit->label();
-            $tx = CashTransaction::create([
-                'apartment_id' => $unit->apartment_id,
-                'cashbox_id' => $cashbox->id,
-                'type' => 'income',
-                'sub_type' => $subType,
-                'amount' => Money::decimal($amount),
-                'unit_id' => $unit->id,
-                'debt_id' => $preferred?->id,
-                'description' => $description ?: "{$label} Tahsilat",
-                'performed_by' => $by?->id,
-            ]);
-
-            $left = $amount;
-            foreach ($open as $debt) {
-                if ($left <= 0) {
-                    break;
-                }
-                $remaining = Money::cents($debt->remaining_amount);
-                $pay = min($left, $remaining);
-                if ($pay <= 0) {
+            $caps = [];
+            foreach ($allocations as $debtId => $cents) {
+                if ($cents <= 0) {
                     continue;
                 }
-                $newRemaining = $remaining - $pay;
-                $debt->update([
-                    'remaining_amount' => Money::decimal($newRemaining),
-                    'paid_amount' => Money::decimal(Money::cents($debt->paid_amount) + $pay),
-                    'status' => $newRemaining === 0 ? Debt::PAID : Debt::PENDING,
-                ]);
-                DebtPayment::create([
-                    'apartment_id' => $unit->apartment_id, 'debt_id' => $debt->id, 'unit_id' => $unit->id,
-                    'cash_transaction_id' => $tx->id, 'type' => 'collection', 'amount' => Money::decimal($pay),
-                ]);
-                $left -= $pay;
+                $debt = $open->firstWhere('id', (int) $debtId);
+                if (! $debt) {
+                    throw new FinanceException('Tutar girilen borç bu dairenin açık borçları arasında değil.');
+                }
+                if ($cents > Money::cents($debt->remaining_amount)) {
+                    throw new FinanceException("\"{$debt->description}\" için girilen tutar kalan borcu (".Money::format($debt->remaining_amount).') aşıyor.');
+                }
+                $caps[$debt->id] = $cents;
+            }
+            $auto = $payer
+                ? $open->filter(fn (Debt $debt) => $debt->responsible === null || $debt->responsible === $payer->type)->values()
+                : $open;
+
+            $group = count($parts) > 1 ? (string) Str::uuid() : null;
+            $transactions = collect();
+            foreach ($parts as $part) {
+                $transactions->push($this->collectPart($unit, $cashboxes[$part['cashbox']->id], $part, $open, $auto, $caps,
+                    $group, $description, $by, $preferred, $payer));
+            }
+            if (array_sum($caps) > 0) {
+                throw new FinanceException('Borçlara elle yazılan tutarların toplamı ödeme tutarından fazla.');
             }
 
-            $applied = $amount - $left;
-            $tx->update(['applied_to_debts' => Money::decimal($applied), 'to_advance' => Money::decimal($left)]);
-            if ($left > 0) {
-                $unit->update(['credit_balance' => Money::decimal(Money::cents($unit->credit_balance) + $left)]);
-            }
-            $cashbox->update(['balance' => Money::decimal(Money::cents($cashbox->balance) + $amount)]);
-
-            // Yevmiye: Kasa (B) / Daire alacağı (A) + fazlası Avans (A)
-            $ref = "cash_tx:{$tx->id}";
-            $desc = "Tahsilat: {$label}";
-            $this->ledger($unit->apartment_id, $ref, 'collection', LedgerEntry::CASH, $cashbox->id, $amount, 0, $desc);
-            if ($applied > 0) {
-                $this->ledger($unit->apartment_id, $ref, 'collection', LedgerEntry::UNIT, $unit->id, 0, $applied, $desc);
-            }
-            if ($left > 0) {
-                $this->ledger($unit->apartment_id, $ref, 'collection', LedgerEntry::UNIT_ADVANCE, $unit->id, 0, $left, "{$desc} (Avans)");
-            }
-
-            $this->audit($unit->apartment, $by, 'COLLECTION', 'FINANCE', $ref, [
-                'unit' => $label, 'cashbox' => $cashbox->name, 'amount' => Money::decimal($amount),
-                'applied' => Money::decimal($applied), 'advance' => Money::decimal($left),
-            ]);
-
-            return $tx;
+            return $transactions;
         });
+    }
+
+    /**
+     * @param  array{cashbox: Cashbox, amount: int, method?: string, exchange_rate?: string|null}  $part
+     * @param  Collection<int, Debt>  $open  kilitli açık borçlar; sonraki parçalar güncel kalanı görür
+     * @param  Collection<int, Debt>  $auto  otomatik dağıtıma girebilen açık borçlar
+     * @param  array<int, int>  $caps  elle girilen borç tutarlarından henüz kapatılmayan kuruşlar (parçalar arasında azalır)
+     */
+    private function collectPart(Unit $unit, Cashbox $cashbox, array $part, Collection $open, Collection $auto, array &$caps,
+        ?string $group, ?string $description, ?User $by, ?Debt $preferred, ?Member $payer): CashTransaction
+    {
+        $money = $this->inflow($cashbox, $part['amount'], $part['exchange_rate'] ?? null);
+        $amount = $money['try'];
+        $label = $unit->label();
+
+        $tx = CashTransaction::create($this->moneyFields($cashbox, $money) + [
+            'apartment_id' => $unit->apartment_id,
+            'cashbox_id' => $cashbox->id,
+            'type' => 'income',
+            'sub_type' => $part['method'] ?? 'collection',
+            'payment_group' => $group,
+            'unit_id' => $unit->id,
+            'payer_member_id' => $payer?->id,
+            'debt_id' => $preferred?->id,
+            'description' => $description ?: "{$label} Tahsilat",
+            'performed_by' => $by?->id,
+        ]);
+
+        $left = $amount;
+        foreach ($caps as $debtId => $cap) {
+            if ($left <= 0) {
+                break;
+            }
+            $paid = $this->payDebt($open->firstWhere('id', $debtId), $tx, min($left, $cap));
+            $caps[$debtId] -= $paid;
+            $left -= $paid;
+        }
+        foreach ($auto as $debt) {
+            if ($left <= 0) {
+                break;
+            }
+            $left -= $this->payDebt($debt, $tx, $left);
+        }
+
+        $applied = $amount - $left;
+        $tx->update(['applied_to_debts' => Money::decimal($applied), 'to_advance' => Money::decimal($left)]);
+        if ($left > 0) {
+            $unit->update(['credit_balance' => Money::decimal(Money::cents($unit->credit_balance) + $left)]);
+        }
+        $this->moveCashbox($cashbox, $amount, $money['original']);
+
+        // Yevmiye: Kasa (B) / Daire alacağı (A) + fazlası Avans (A)
+        $ref = "cash_tx:{$tx->id}";
+        $desc = "Tahsilat: {$label}".$this->foreignNote($cashbox, $money);
+        $this->ledger($unit->apartment_id, $ref, 'collection', LedgerEntry::CASH, $cashbox->id, $amount, 0, $desc);
+        if ($applied > 0) {
+            $this->ledger($unit->apartment_id, $ref, 'collection', LedgerEntry::UNIT, $unit->id, 0, $applied, $desc);
+        }
+        if ($left > 0) {
+            $this->ledger($unit->apartment_id, $ref, 'collection', LedgerEntry::UNIT_ADVANCE, $unit->id, 0, $left, "{$desc} (Avans)");
+        }
+
+        $this->audit($unit->apartment, $by, 'COLLECTION', 'FINANCE', $ref, [
+            'unit' => $label, 'cashbox' => $cashbox->name, 'amount' => Money::decimal($amount),
+            'currency' => $cashbox->currency, 'original_amount' => Money::decimal($money['original']), 'exchange_rate' => $money['rate'],
+            'payment_group' => $group, 'applied' => Money::decimal($applied), 'advance' => Money::decimal($left),
+            'payer' => $payer?->full_name,
+        ]);
+
+        return $tx;
+    }
+
+    /** Tahsilattan borca en fazla $max kuruş yazar. @return int yazılan kuruş */
+    private function payDebt(Debt $debt, CashTransaction $tx, int $max): int
+    {
+        $remaining = Money::cents($debt->remaining_amount);
+        $pay = min($max, $remaining);
+        if ($pay <= 0) {
+            return 0;
+        }
+        $debt->update([
+            'remaining_amount' => Money::decimal($remaining - $pay),
+            'paid_amount' => Money::decimal(Money::cents($debt->paid_amount) + $pay),
+            'status' => $remaining - $pay === 0 ? Debt::PAID : Debt::PENDING,
+        ]);
+        DebtPayment::create([
+            'apartment_id' => $tx->apartment_id, 'debt_id' => $debt->id, 'unit_id' => $tx->unit_id,
+            'cash_transaction_id' => $tx->id, 'type' => 'collection', 'amount' => Money::decimal($pay),
+        ]);
+
+        return $pay;
     }
 
     // ----------------------------------------------------------------- KASA
 
     /**
      * Borçla ilişkisiz gelir / gider. Gider kasadan çıkar (bakiye kontrolü yapılır).
+     * Döviz kasasında gelir verilen kurla, gider kasanın ortalama maliyetiyle TRY'ye çevrilir.
      *
      * @param  'income'|'expense'  $type
-     * @param  int  $amount  kuruş
+     * @param  int  $amount  kasanın para birimi cinsinden kuruş
      */
     public function generalTransaction(Cashbox $cashbox, string $type, int $amount, string $description,
-        ?int $categoryId = null, ?User $by = null): CashTransaction
+        ?int $categoryId = null, ?User $by = null, ?string $exchangeRate = null): CashTransaction
     {
         if ($amount <= 0) {
             throw new FinanceException('İşlem tutarı 0\'dan büyük olmalıdır.');
         }
 
-        return DB::transaction(function () use ($cashbox, $type, $amount, $description, $categoryId, $by) {
+        return DB::transaction(function () use ($cashbox, $type, $amount, $description, $categoryId, $by, $exchangeRate) {
             $cashbox = Cashbox::whereKey($cashbox->id)->lockForUpdate()->firstOrFail();
+            $this->assertCashboxActive($cashbox);
             $isIncome = $type === 'income';
-            if (! $isIncome) {
-                $this->assertCanPay($cashbox, $amount);
-            }
-            $balance = Money::cents($cashbox->balance) + ($isIncome ? $amount : -$amount);
-            $cashbox->update(['balance' => Money::decimal($balance)]);
+            $money = $isIncome ? $this->inflow($cashbox, $amount, $exchangeRate) : $this->outflow($cashbox, $amount);
+            $this->moveCashbox($cashbox, $isIncome ? $money['try'] : -$money['try'], $isIncome ? $money['original'] : -$money['original']);
 
-            $tx = CashTransaction::create([
+            $tx = CashTransaction::create($this->moneyFields($cashbox, $money) + [
                 'apartment_id' => $cashbox->apartment_id, 'cashbox_id' => $cashbox->id, 'type' => $type,
-                'sub_type' => 'general', 'amount' => Money::decimal($amount), 'category_id' => $categoryId,
+                'sub_type' => 'general', 'category_id' => $categoryId,
                 'description' => $description, 'performed_by' => $by?->id,
             ]);
+            $amount = $money['try'];
 
             $ref = "cash_tx:{$tx->id}";
             $other = $isIncome ? LedgerEntry::INCOME : LedgerEntry::EXPENSE;
@@ -388,26 +590,29 @@ class FinanceService
                 : $this->ledgerPair($cashbox->apartment_id, $ref, 'general', [$other, $categoryId], [LedgerEntry::CASH, $cashbox->id], $amount, $description);
 
             $this->audit($cashbox->apartment, $by, $isIncome ? 'GENERAL_INCOME' : 'GENERAL_EXPENSE', 'FINANCE', $ref,
-                ['cashbox' => $cashbox->name, 'amount' => Money::decimal($amount), 'description' => $description]);
+                ['cashbox' => $cashbox->name, 'amount' => Money::decimal($amount), 'currency' => $cashbox->currency, 'original_amount' => Money::decimal($money['original']), 'description' => $description]);
 
             return $tx;
         });
     }
 
-    /** Yeni kasanın açılış bakiyesi: kasaya girer, karşılığı gelir değil açılış hesabıdır. @param int $amount kuruş */
-    public function recordOpeningBalance(Cashbox $cashbox, int $amount, ?User $by = null): CashTransaction
+    /** Yeni kasanın açılış bakiyesi: kasaya girer, karşılığı gelir değil açılış hesabıdır. @param int $amount kasanın para birimi cinsinden kuruş */
+    public function recordOpeningBalance(Cashbox $cashbox, int $amount, ?User $by = null, ?string $exchangeRate = null): CashTransaction
     {
         if ($amount <= 0) {
             throw new FinanceException('Açılış bakiyesi 0\'dan büyük olmalıdır.');
         }
 
-        return DB::transaction(function () use ($cashbox, $amount, $by) {
+        return DB::transaction(function () use ($cashbox, $amount, $by, $exchangeRate) {
             $cashbox = Cashbox::whereKey($cashbox->id)->lockForUpdate()->firstOrFail();
-            $cashbox->update(['balance' => Money::decimal(Money::cents($cashbox->balance) + $amount)]);
+            $this->assertCashboxActive($cashbox);
+            $money = $this->inflow($cashbox, $amount, $exchangeRate);
+            $amount = $money['try'];
+            $this->moveCashbox($cashbox, $amount, $money['original']);
 
-            $tx = CashTransaction::create([
+            $tx = CashTransaction::create($this->moneyFields($cashbox, $money) + [
                 'apartment_id' => $cashbox->apartment_id, 'cashbox_id' => $cashbox->id, 'type' => 'income',
-                'sub_type' => 'opening', 'amount' => Money::decimal($amount),
+                'sub_type' => 'opening',
                 'description' => 'Açılış bakiyesi', 'performed_by' => $by?->id,
             ]);
 
@@ -421,8 +626,14 @@ class FinanceService
         });
     }
 
-    /** Kasalar arası virman. @param int $amount kuruş */
-    public function transfer(Cashbox $from, Cashbox $to, int $amount, ?string $description = null, ?User $by = null): void
+    /**
+     * Kasalar arası virman. Para birimleri farklıysa (döviz bozdurma / alma) hedef kasaya giren tutar verilir.
+     * Döviz TRY kasaya bozdurulunca alınan TRY ile kasanın ortalama maliyeti arasındaki fark kur farkı olarak yazılır.
+     *
+     * @param  int  $amount  kaynak kasanın para birimi cinsinden kuruş
+     * @param  int|null  $targetAmount  hedef kasanın para birimi cinsinden kuruş
+     */
+    public function transfer(Cashbox $from, Cashbox $to, int $amount, ?string $description = null, ?User $by = null, ?int $targetAmount = null): void
     {
         if ($amount <= 0) {
             throw new FinanceException('Virman tutarı 0\'dan büyük olmalıdır.');
@@ -434,74 +645,261 @@ class FinanceService
             throw new FinanceException('Kasalar aynı siteye ait olmalıdır.');
         }
 
-        DB::transaction(function () use ($from, $to, $amount, $description, $by) {
+        DB::transaction(function () use ($from, $to, $amount, $description, $by, $targetAmount) {
             // Kilitler her zaman id sırasıyla alınır (karşılıklı virmanlarda kilitlenme olmaz)
             $boxes = Cashbox::whereIn('id', [$from->id, $to->id])->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $boxes->each(fn (Cashbox $box) => $this->assertCashboxActive($box));
             $from = $boxes[$from->id];
             $to = $boxes[$to->id];
-            $this->assertCanPay($from, $amount);
 
-            $from->update(['balance' => Money::decimal(Money::cents($from->balance) - $amount)]);
-            $to->update(['balance' => Money::decimal(Money::cents($to->balance) + $amount)]);
+            $received = $from->currency === $to->currency ? $amount : (int) $targetAmount;
+            if ($received <= 0) {
+                throw new FinanceException('Para birimi farklı kasalar arasında hedef kasaya girecek tutar zorunludur.');
+            }
 
+            $outgoing = $this->outflow($from, $amount);
+            // Döviz TRY'ye dönüyorsa değer alınan TRY'dir; diğer durumlarda maliyet aynen taşınır
+            $bookValue = $from->isForeign() && ! $to->isForeign() ? $received : $outgoing['try'];
             $desc = trim($description ?? '') ?: "{$from->name} → {$to->name}";
-            $out = CashTransaction::create([
+            $this->recordFxDifference($from, $bookValue - $outgoing['try'], "Kur farkı: {$desc}", $by);
+
+            $this->moveCashbox($from, -$bookValue, -$amount);
+            $this->moveCashbox($to, $bookValue, $received);
+
+            $out = CashTransaction::create($this->moneyFields($from, $this->money($bookValue, $amount)) + [
                 'apartment_id' => $from->apartment_id, 'cashbox_id' => $from->id, 'type' => 'expense',
-                'sub_type' => 'transfer_out', 'amount' => Money::decimal($amount),
+                'sub_type' => 'transfer_out',
                 'description' => "Virman (Giden): {$desc}", 'performed_by' => $by?->id,
             ]);
-            $in = CashTransaction::create([
+            $in = CashTransaction::create($this->moneyFields($to, $this->money($bookValue, $received)) + [
                 'apartment_id' => $to->apartment_id, 'cashbox_id' => $to->id, 'type' => 'income',
-                'sub_type' => 'transfer_in', 'amount' => Money::decimal($amount),
+                'sub_type' => 'transfer_in',
                 'description' => "Virman (Gelen): {$desc}", 'performed_by' => $by?->id,
                 'related_transaction_id' => $out->id,
             ]);
             $out->update(['related_transaction_id' => $in->id]);
 
             $this->ledgerPair($from->apartment_id, "cash_tx:{$out->id}", 'transfer',
-                [LedgerEntry::CASH, $to->id], [LedgerEntry::CASH, $from->id], $amount, "Virman: {$desc}");
-            $this->audit($from->apartment, $by, 'TRANSFER', 'FINANCE', "cash_tx:{$out->id}",
-                ['from' => $from->name, 'to' => $to->name, 'amount' => Money::decimal($amount)]);
+                [LedgerEntry::CASH, $to->id], [LedgerEntry::CASH, $from->id], $bookValue, "Virman: {$desc}");
+            $this->audit($from->apartment, $by, 'TRANSFER', 'FINANCE', "cash_tx:{$out->id}", [
+                'from' => $from->name, 'to' => $to->name, 'amount' => Money::decimal($bookValue),
+                'sent' => Money::decimal($amount), 'sent_currency' => $from->currency,
+                'received' => Money::decimal($received), 'received_currency' => $to->currency,
+            ]);
         });
     }
 
     // ----------------------------------------------------------------- GİDER
 
-    /** Bekleyen gideri onaylar: KDV dahil tutar seçilen kasadan düşer. */
-    public function approveExpense(Expense $expense, Cashbox $cashbox, ?User $by = null): void
+    /**
+     * Gideri (ör. bir daireye gönderilen teknik servisin faturasını) daireye borç olarak yansıtır. Borç gidere bağlı
+     * kalır; aynı gider ikinci kez yansıtılamaz. Gelir "Masraf Yansıtma" kategorisine yazılır.
+     *
+     * @param  int  $amount  daireden alınacak TL kuruş
+     */
+    public function rechargeExpense(Expense $expense, Unit $unit, int $amount, string $dueDate, ?string $responsible = null, ?User $by = null): Debt
+    {
+        if ($unit->apartment_id !== $expense->apartment_id) {
+            throw new FinanceException('Daire bu siteye ait değil.');
+        }
+        if (Debt::where('expense_id', $expense->id)->exists()) {
+            throw new FinanceException('Bu gider zaten bir daireye yansıtılmış.');
+        }
+        $this->assertPeriodOpen($expense->apartment, $dueDate);
+        $category = $expense->apartment->categories()->firstOrCreate(['name' => 'Masraf Yansıtma', 'type' => 'income']);
+        $invoice = $expense->invoice_no ? " (Fatura: {$expense->invoice_no})" : '';
+
+        $this->accrue($unit, [
+            'description' => mb_substr("{$expense->description}{$invoice}", 0, 200),
+            'amount' => $amount, 'due_date' => $dueDate, 'period' => substr($dueDate, 0, 7),
+            'category_id' => $category->id, 'category_name' => $category->name,
+            'responsible' => $responsible, 'expense_id' => $expense->id,
+        ], "recharge:{$expense->id}");
+        $debt = Debt::where('expense_id', $expense->id)->firstOrFail();
+        $this->audit($expense->apartment, $by, 'RECHARGE_EXPENSE', 'EXPENSE', "expense:{$expense->id}",
+            ['unit' => $unit->label(), 'amount' => Money::decimal($amount), 'debt' => $debt->id]);
+
+        return $debt;
+    }
+
+    /** Bekleyen giderin kalan tutarının tamamını öder: KDV dahil kalan tutar seçilen kasadan düşer. */
+    public function approveExpense(Expense $expense, Cashbox $cashbox, ?User $by = null, ?string $exchangeRate = null): void
+    {
+        $this->payExpense($expense, $cashbox, null, $by, $exchangeRate);
+    }
+
+    /**
+     * Gidere (tedarikçi faturasına) ödeme yapar. Kısmi ödemede gider bekleyen kalır; kalan tutar sıfırlanınca
+     * gider onaylanmış (ödendi) olur. Her ödeme ayrı kasa hareketi ve yevmiye kaydıdır, ayrı iptal edilebilir.
+     *
+     * @param  int|null  $amount  TL kuruş; null ise kalan tutarın tamamı
+     */
+    public function payExpense(Expense $expense, Cashbox $cashbox, ?int $amount, ?User $by = null, ?string $exchangeRate = null): CashTransaction
     {
         $this->assertSameApartment($expense->apartment_id, $cashbox);
 
-        DB::transaction(function () use ($expense, $cashbox, $by) {
+        return DB::transaction(function () use ($expense, $cashbox, $amount, $by, $exchangeRate) {
             $expense = Expense::whereKey($expense->id)->lockForUpdate()->firstOrFail();
             if ($expense->status === 'approved') {
                 throw new FinanceException('Bu gider zaten onaylanmış.');
             }
             $cashbox = Cashbox::whereKey($cashbox->id)->lockForUpdate()->firstOrFail();
-            $amount = Money::cents($expense->total_amount);
-            if ($amount <= 0) {
+            $this->assertCashboxActive($cashbox);
+            $total = Money::cents($expense->total_amount);
+            $paidBefore = Money::cents($expense->paid_amount);
+            $remaining = $total - $paidBefore;
+            if ($total <= 0 || $remaining <= 0) {
                 throw new FinanceException('Gider tutarı geçersiz.');
             }
-            $this->assertCanPay($cashbox, $amount);
+            $amount ??= $remaining;
+            if ($amount <= 0) {
+                throw new FinanceException('Ödeme tutarı 0\'dan büyük olmalıdır.');
+            }
+            if ($amount > $remaining) {
+                throw new FinanceException('Ödeme tutarı giderin kalan tutarını ('.Money::format($remaining / 100).') aşamaz.');
+            }
 
-            $cashbox->update(['balance' => Money::decimal(Money::cents($cashbox->balance) - $amount)]);
+            $money = $this->expensePayment($cashbox, $amount, $exchangeRate, $expense->description, $by);
+            $this->moveCashbox($cashbox, -$money['try'], -$money['original']);
+            $isFullyPaid = $amount === $remaining;
             $expense->update([
-                'status' => 'approved', 'cashbox_id' => $cashbox->id,
-                'approved_by' => $by?->id, 'approved_at' => now(),
+                'paid_amount' => Money::decimal($paidBefore + $amount),
+                'status' => $isFullyPaid ? 'approved' : 'pending', 'cashbox_id' => $cashbox->id,
+                'approved_by' => $isFullyPaid ? $by?->id : null, 'approved_at' => $isFullyPaid ? now() : null,
             ]);
             $invoice = $expense->invoice_no ? " (Fatura: {$expense->invoice_no})" : '';
-            $tx = CashTransaction::create([
+            $partial = $amount === $total ? '' : ($isFullyPaid ? ' — son ödeme' : ' — kısmi ödeme');
+            $tx = CashTransaction::create($this->moneyFields($cashbox, $money) + [
                 'apartment_id' => $expense->apartment_id, 'cashbox_id' => $cashbox->id, 'type' => 'expense',
-                'sub_type' => 'invoice', 'amount' => Money::decimal($amount), 'expense_id' => $expense->id,
+                'sub_type' => 'invoice', 'expense_id' => $expense->id,
                 'category_id' => $expense->category_id,
-                'description' => "Gider: {$expense->description}{$invoice}", 'performed_by' => $by?->id,
+                'description' => "Gider: {$expense->description}{$invoice}{$partial}", 'performed_by' => $by?->id,
             ]);
             $this->ledgerPair($expense->apartment_id, "cash_tx:{$tx->id}", 'expense',
                 [LedgerEntry::EXPENSE, $expense->category_id], [LedgerEntry::CASH, $cashbox->id],
-                $amount, $expense->description);
-            $this->audit($expense->apartment, $by, 'APPROVE_EXPENSE', 'EXPENSE', "expense:{$expense->id}",
-                ['cashbox' => $cashbox->name, 'amount' => Money::decimal($amount)]);
+                $amount, $expense->description.$partial);
+            $this->audit($expense->apartment, $by, $isFullyPaid ? 'APPROVE_EXPENSE' : 'PAY_EXPENSE', 'EXPENSE', "expense:{$expense->id}",
+                ['cashbox' => $cashbox->name, 'amount' => Money::decimal($amount), 'currency' => $cashbox->currency, 'original_amount' => Money::decimal($money['original']), 'exchange_rate' => $money['rate'],
+                    'paid_total' => Money::decimal($paidBefore + $amount), 'remaining' => Money::decimal($remaining - $amount)]);
+
+            return $tx;
         });
+    }
+
+    /**
+     * TL tutarlı giderin kasadan çıkışı. Döviz kasasında çıkacak döviz güncel kurla bulunur;
+     * ortalama maliyetle güncel değer arasındaki fark kur farkı olarak yazılır.
+     *
+     * @return array{try: int, original: int, rate: string}
+     */
+    private function expensePayment(Cashbox $cashbox, int $amount, ?string $exchangeRate, string $description, ?User $by): array
+    {
+        if (! $cashbox->isForeign()) {
+            $this->assertCanPay($cashbox, $amount);
+
+            return $this->money($amount, $amount);
+        }
+        if ($exchangeRate === null || (float) $exchangeRate <= 0) {
+            throw new FinanceException("\"{$cashbox->name}\" kasası {$cashbox->currency} cinsindendir; kur girilmelidir.");
+        }
+
+        $native = (int) round($amount / (float) $exchangeRate);
+        if ($native <= 0) {
+            throw new FinanceException('Tutar ve kurun döviz karşılığı geçersiz.');
+        }
+        $outgoing = $this->outflow($cashbox, $native);
+        $this->recordFxDifference($cashbox, $amount - $outgoing['try'], "Kur farkı: {$description}", $by);
+
+        return $this->money($amount, $native);
+    }
+
+    // ----------------------------------------------------------------- ELLE YEVMİYE
+
+    /**
+     * Elle yevmiye fişi. Kasa ve daire hesapları kullanılamaz: bunların bakiyesi kendi ekranlarındaki
+     * işlemlerle oluşur, fiş bakiyeyle yevmiyeyi birbirinden ayırırdı.
+     *
+     * @param  array<int, array{account: string, debit: int, credit: int}>  $lines  tutarlar kuruş; hesap: income:ID, expense:ID, fx, opening
+     */
+    public function manualJournal(Apartment $apartment, string $date, string $description, array $lines, ?User $by = null): string
+    {
+        $this->assertPeriodOpen($apartment, $date);
+        if (count($lines) < 2) {
+            throw new FinanceException('Fişte en az iki satır olmalıdır.');
+        }
+
+        $resolved = array_map(function (array $line) use ($apartment) {
+            if (($line['debit'] > 0) === ($line['credit'] > 0) || $line['debit'] < 0 || $line['credit'] < 0) {
+                throw new FinanceException('Her satıra yalnızca borç veya yalnızca alacak tutarı yazın.');
+            }
+
+            return $this->manualAccount($apartment, $line['account']) + $line;
+        }, $lines);
+
+        $debit = array_sum(array_column($resolved, 'debit'));
+        if ($debit !== array_sum(array_column($resolved, 'credit'))) {
+            throw new FinanceException('Fiş dengede değil: toplam borç ile toplam alacak eşit olmalıdır.');
+        }
+
+        $reference = 'manual:'.Str::uuid();
+        $createdAt = CarbonImmutable::parse($date)->setTimeFrom(now());
+        DB::transaction(function () use ($apartment, $resolved, $reference, $createdAt, $description, $debit, $by) {
+            foreach ($resolved as $line) {
+                LedgerEntry::create([
+                    'apartment_id' => $apartment->id, 'reference' => $reference, 'entry_type' => 'manual',
+                    'account_name' => $line['name'], 'account_id' => $line['id'],
+                    'debit' => Money::decimal($line['debit']), 'credit' => Money::decimal($line['credit']),
+                    'description' => mb_substr($description, 0, 250), 'created_at' => $createdAt,
+                ]);
+            }
+            $this->audit($apartment, $by, 'MANUAL_JOURNAL', 'FINANCE', $reference, [
+                'date' => $createdAt->toDateString(), 'description' => $description, 'total' => Money::decimal($debit),
+            ]);
+        });
+
+        return $reference;
+    }
+
+    public function reverseManualJournal(Apartment $apartment, string $reference, string $reason, ?User $by = null): void
+    {
+        DB::transaction(function () use ($apartment, $reference, $reason, $by) {
+            $entries = $apartment->ledgerEntries()->where('reference', $reference)->lockForUpdate()->get();
+            $manual = $entries->where('entry_type', 'manual');
+            if ($manual->isEmpty()) {
+                throw new FinanceException('Yalnızca elle kesilmiş fiş iptal edilebilir.');
+            }
+            if ($entries->contains('entry_type', 'manual_reversal')) {
+                throw new FinanceException('Bu fiş zaten iptal edilmiş.');
+            }
+            $this->assertPeriodOpen($apartment, $manual->first()->created_at);
+
+            foreach ($manual as $entry) {
+                LedgerEntry::create([
+                    'apartment_id' => $apartment->id, 'reference' => $reference, 'entry_type' => 'manual_reversal',
+                    'account_name' => $entry->account_name, 'account_id' => $entry->account_id,
+                    'debit' => $entry->credit, 'credit' => $entry->debit,
+                    'description' => mb_substr("İptal: {$entry->description} — {$reason}", 0, 250),
+                ]);
+            }
+            $this->audit($apartment, $by, 'REVERSE_MANUAL_JOURNAL', 'FINANCE', $reference, ['reason' => $reason]);
+        });
+    }
+
+    /** @return array{name: string, id: string|null} */
+    private function manualAccount(Apartment $apartment, string $account): array
+    {
+        [$kind, $categoryId] = array_pad(explode(':', $account, 2), 2, null);
+
+        return match ($kind) {
+            'fx' => ['name' => LedgerEntry::FX_DIFFERENCE, 'id' => null],
+            'opening' => ['name' => LedgerEntry::OPENING, 'id' => null],
+            'income', 'expense' => [
+                'name' => $kind === 'income' ? LedgerEntry::INCOME : LedgerEntry::EXPENSE,
+                'id' => (string) ($apartment->categories()->where('type', $kind)->find((int) $categoryId)?->id
+                    ?? throw new FinanceException('Seçilen kategori bu siteye ait değil.')),
+            ],
+            default => throw new FinanceException('Kasa ve daire hesaplarına elle fiş kesilemez; ilgili ekrandan işlem yapın.'),
+        };
     }
 
     // ----------------------------------------------------------------- GECİKME ZAMMI
@@ -565,6 +963,7 @@ class FinanceService
                 'category_name' => $category->name,
                 'kind' => 'late_fee',
                 'parent_debt_id' => $debt->id,
+                'responsible' => $debt->responsible,
             ], $item['key']);
             if ($result === 'created') {
                 $created++;
@@ -586,6 +985,8 @@ class FinanceService
      */
     public function reverse(CashTransaction $tx, string $reason, ?User $by = null): CashTransaction
     {
+        $this->assertPeriodOpen($tx->apartment, $tx->created_at);
+
         return DB::transaction(function () use ($tx, $reason, $by) {
             $tx = CashTransaction::whereKey($tx->id)->lockForUpdate()->firstOrFail();
             if ($tx->isReversed() || $tx->sub_type === 'reversal') {
@@ -594,15 +995,19 @@ class FinanceService
             if ($tx->isTransfer()) {
                 throw new FinanceException('Virman iptal edilemez; ters yönde yeni bir virman yapın.');
             }
+            if ($tx->isFxDifference()) {
+                throw new FinanceException('Kur farkı kaydı iptal edilemez.');
+            }
             // Tahsilatla aynı kilit sırası: önce daire, sonra kasa
             if ($tx->unit_id) {
                 Unit::whereKey($tx->unit_id)->lockForUpdate()->first();
             }
             $cashbox = Cashbox::whereKey($tx->cashbox_id)->lockForUpdate()->firstOrFail();
             $amount = Money::cents($tx->amount);
+            $original = Money::cents($tx->original_amount);
             $wasIncome = $tx->type === 'income';
             if ($wasIncome) {
-                $this->assertCanPay($cashbox, $amount); // iptal, kasadan para çıkışıdır
+                $this->assertCanPay($cashbox, $original); // iptal, kasadan para çıkışıdır
             }
 
             match ($tx->sub_type) {
@@ -612,10 +1017,11 @@ class FinanceService
                 default => null,
             };
 
-            $cashbox->update(['balance' => Money::decimal(Money::cents($cashbox->balance) + ($wasIncome ? -$amount : $amount))]);
+            $this->moveCashbox($cashbox, $wasIncome ? -$amount : $amount, $wasIncome ? -$original : $original);
             $reversal = CashTransaction::create([
                 'apartment_id' => $tx->apartment_id, 'cashbox_id' => $tx->cashbox_id,
                 'type' => $wasIncome ? 'expense' : 'income', 'sub_type' => 'reversal', 'amount' => Money::decimal($amount),
+                'currency' => $tx->currency, 'original_amount' => $tx->original_amount, 'exchange_rate' => $tx->exchange_rate,
                 'unit_id' => $tx->unit_id, 'category_id' => $tx->category_id, 'expense_id' => $tx->expense_id,
                 'description' => "İptal: {$tx->description} — {$reason}", 'performed_by' => $by?->id,
                 'reversal_of_id' => $tx->id,
@@ -628,9 +1034,10 @@ class FinanceService
                 ]);
             }
             $tx->update(['reversed_at' => now(), 'reversed_by' => $by?->id, 'reversal_reason' => $reason]);
+            $this->settleEmptyForeignCashbox($cashbox, $by);
             BankStatementLine::where('cash_transaction_id', $tx->id)->update(['status' => 'pending', 'cash_transaction_id' => null]);
             $this->audit($tx->apartment, $by, 'REVERSE_TRANSACTION', 'FINANCE', "cash_tx:{$tx->id}",
-                ['amount' => Money::decimal($amount), 'reason' => $reason, 'type' => $tx->sub_type]);
+                ['amount' => Money::decimal($amount), 'currency' => $tx->currency, 'original_amount' => $tx->original_amount, 'reason' => $reason, 'type' => $tx->sub_type]);
 
             return $reversal;
         });
@@ -662,9 +1069,18 @@ class FinanceService
         }
     }
 
+    /** İptal edilen ödeme giderin ödenen tutarından düşer; gider yeniden bekleyen olur. */
     private function undoExpense(CashTransaction $tx): void
     {
-        Expense::whereKey($tx->expense_id)->update(['status' => 'pending', 'cashbox_id' => null, 'approved_by' => null, 'approved_at' => null]);
+        $expense = Expense::whereKey($tx->expense_id)->lockForUpdate()->first();
+        if (! $expense) {
+            return;
+        }
+        $paid = max(Money::cents($expense->paid_amount) - Money::cents($tx->amount), 0);
+        $expense->update([
+            'paid_amount' => Money::decimal($paid), 'status' => 'pending', 'approved_by' => null, 'approved_at' => null,
+            'cashbox_id' => $paid > 0 ? $expense->cashbox_id : null,
+        ]);
     }
 
     /** Dairenin avansını kuruş cinsinden artırır / azaltır (çağıran transaction içinde olmalıdır). */
@@ -685,6 +1101,8 @@ class FinanceService
         return DB::transaction(function () use ($unit, $cashbox, $amount, $by) {
             $unit = Unit::whereKey($unit->id)->lockForUpdate()->firstOrFail();
             $cashbox = Cashbox::whereKey($cashbox->id)->lockForUpdate()->firstOrFail();
+            $this->assertCashboxActive($cashbox);
+            $this->assertBaseCurrency($cashbox, 'Avans iadesi');
             if ($amount > Money::cents($unit->credit_balance)) {
                 throw new FinanceException('İade tutarı dairenin avansını ('.Money::format($unit->credit_balance).') aşamaz.');
             }
@@ -759,6 +1177,8 @@ class FinanceService
         if ($everyMonths < 1 || $everyMonths > 12) {
             throw new FinanceException('Taksit aralığı 1 ile 12 ay arasında olmalıdır.');
         }
+        $this->assertDebtPeriodOpen($debt);
+        $this->assertPeriodOpen($debt->apartment, $firstDue);
 
         return DB::transaction(function () use ($debt, $count, $firstDue, $everyMonths, $by) {
             Unit::whereKey($debt->unit_id)->lockForUpdate()->first();
@@ -766,6 +1186,9 @@ class FinanceService
             $remaining = Money::cents($debt->remaining_amount);
             if ($debt->status !== Debt::PENDING || $remaining <= 0) {
                 throw new FinanceException('Yalnızca açık borç taksitlendirilebilir.');
+            }
+            if ($debt->kind === 'late_fee') {
+                throw new FinanceException('Gecikme zammı taksitlendirilemez: taksitlere yeniden zam işler.');
             }
             $unit = $debt->unit;
             $this->ledgerPair($debt->apartment_id, "debt:{$debt->id}", 'restructure',
@@ -784,7 +1207,7 @@ class FinanceService
                     'due_date' => $first->addMonthsNoOverflow(($i - 1) * $everyMonths)->toDateString(),
                     'period' => $debt->period,
                     'category_id' => $debt->category_id, 'category_name' => $debt->category_name,
-                    'kind' => 'installment', 'parent_debt_id' => $debt->id,
+                    'kind' => 'installment', 'parent_debt_id' => $debt->id, 'responsible' => $debt->responsible,
                 ], "inst:{$debt->id}:{$i}");
             }
             $this->audit($debt->apartment, $by, 'INSTALLMENTS', 'DEBT', "debt:{$debt->id}",
@@ -805,15 +1228,134 @@ class FinanceService
 
     // ----------------------------------------------------------------- YARDIMCILAR
 
-    /** Apartman ayarı izin vermiyorsa kasa eksiye düşemez. Çağıran, kasayı kilitli okumuş olmalıdır. */
+    /**
+     * Kasaya giren tutarın TRY karşılığı. Döviz kasası için kur zorunludur; TRY kasada kur yok sayılır.
+     *
+     * @return array{try: int, original: int, rate: string}
+     */
+    private function inflow(Cashbox $cashbox, int $amount, ?string $exchangeRate): array
+    {
+        if (! $cashbox->isForeign()) {
+            return ['try' => $amount, 'original' => $amount, 'rate' => '1'];
+        }
+        if ($exchangeRate === null || (float) $exchangeRate <= 0) {
+            throw new FinanceException("\"{$cashbox->name}\" kasası {$cashbox->currency} cinsindendir; kur girilmelidir.");
+        }
+
+        $try = Money::convert($amount, $exchangeRate);
+        if ($try <= 0 || $try > self::MAX_CENTS) {
+            throw new FinanceException('Tutar ve kurun TRY karşılığı geçersiz.');
+        }
+
+        return ['try' => $try, 'original' => $amount, 'rate' => number_format((float) $exchangeRate, 6, '.', '')];
+    }
+
+    /**
+     * Kasadan çıkan tutarın TRY maliyeti: döviz kasasında ağırlıklı ortalama maliyet.
+     * Kasanın tümü çıkıyorsa kalan maliyetin tamamı alınır, kuruş artığı kalmaz.
+     *
+     * @return array{try: int, original: int, rate: string}
+     */
+    private function outflow(Cashbox $cashbox, int $amount): array
+    {
+        $this->assertCanPay($cashbox, $amount);
+        if (! $cashbox->isForeign()) {
+            return ['try' => $amount, 'original' => $amount, 'rate' => '1'];
+        }
+
+        $native = Money::cents($cashbox->currency_balance);
+        $book = Money::cents($cashbox->balance);
+
+        return $this->money($amount === $native ? $book : (int) round($book * $amount / $native), $amount);
+    }
+
+    /** @return array{try: int, original: int, rate: string} */
+    private function money(int $try, int $original): array
+    {
+        return ['try' => $try, 'original' => $original, 'rate' => number_format($original > 0 ? $try / $original : 1, 6, '.', '')];
+    }
+
+    /**
+     * @param  array{try: int, original: int, rate: string}  $money
+     * @return array{amount: string, currency: string, original_amount: string, exchange_rate: string}
+     */
+    private function moneyFields(Cashbox $cashbox, array $money): array
+    {
+        return [
+            'amount' => Money::decimal($money['try']),
+            'currency' => $cashbox->currency,
+            'original_amount' => Money::decimal($money['original']),
+            'exchange_rate' => $cashbox->isForeign() ? $money['rate'] : '1',
+        ];
+    }
+
+    /** Kasa bakiyesini günceller. Çağıran, kasayı kilitli okumuş olmalıdır. Tutarlar kuruş ve işaretlidir. */
+    private function moveCashbox(Cashbox $cashbox, int $tryCents, int $originalCents): void
+    {
+        $changes = ['balance' => Money::decimal(Money::cents($cashbox->balance) + $tryCents)];
+        if ($cashbox->isForeign()) {
+            $changes['currency_balance'] = Money::decimal(Money::cents($cashbox->currency_balance) + $originalCents);
+        }
+        $cashbox->update($changes);
+    }
+
+    /** Döviz kasasının TRY değerini düzeltir: hareket TRY'dedir, döviz mevcudu değişmez. $difference kuruş, + kazanç / − zarar */
+    private function recordFxDifference(Cashbox $cashbox, int $difference, string $description, ?User $by): void
+    {
+        if ($difference === 0) {
+            return;
+        }
+
+        $amount = abs($difference);
+        $isGain = $difference > 0;
+        $this->moveCashbox($cashbox, $difference, 0);
+        $tx = CashTransaction::create([
+            'apartment_id' => $cashbox->apartment_id, 'cashbox_id' => $cashbox->id,
+            'type' => $isGain ? 'income' : 'expense', 'sub_type' => 'fx_difference',
+            'amount' => Money::decimal($amount), 'currency' => $cashbox->currency, 'original_amount' => 0,
+            'description' => $description, 'performed_by' => $by?->id,
+        ]);
+
+        $ref = "cash_tx:{$tx->id}";
+        $isGain
+            ? $this->ledgerPair($cashbox->apartment_id, $ref, 'fx_difference', [LedgerEntry::CASH, $cashbox->id], [LedgerEntry::FX_DIFFERENCE, null], $amount, $description)
+            : $this->ledgerPair($cashbox->apartment_id, $ref, 'fx_difference', [LedgerEntry::FX_DIFFERENCE, null], [LedgerEntry::CASH, $cashbox->id], $amount, $description);
+        $this->audit($cashbox->apartment, $by, 'FX_DIFFERENCE', 'FINANCE', $ref, ['cashbox' => $cashbox->name, 'amount' => Money::decimal($difference)]);
+    }
+
+    /** Dövizi kalmayan kasada TRY değeri kalmışsa (iptal sonrası maliyet artığı) kur farkına aktarılır. */
+    private function settleEmptyForeignCashbox(Cashbox $cashbox, ?User $by): void
+    {
+        if ($cashbox->isForeign() && Money::cents($cashbox->currency_balance) === 0) {
+            $this->recordFxDifference($cashbox, -Money::cents($cashbox->balance), "Kur farkı: {$cashbox->name} kapanış", $by);
+        }
+    }
+
+    /** Kasa, para birimi cinsinden kontrol edilir. Ortalama maliyet eksi bakiyede tanımsız olduğundan döviz kasası eksiye düşemez. */
     private function assertCanPay(Cashbox $cashbox, int $amount): void
     {
-        $allowNegative = (bool) Apartment::whereKey($cashbox->apartment_id)->value('allow_negative_cashbox');
-        $balance = Money::cents($cashbox->balance);
+        $allowNegative = ! $cashbox->isForeign() && (bool) Apartment::whereKey($cashbox->apartment_id)->value('allow_negative_cashbox');
+        $balance = Money::cents($cashbox->nativeBalance());
         if (! $allowNegative && $balance - $amount < 0) {
-            throw new FinanceException("\"{$cashbox->name}\" bakiyesi yetersiz: mevcut ".Money::format($balance / 100)
-                .', gereken '.Money::format($amount / 100).'. (Eksi bakiyeye izin vermek için Kasa ayarlarını kullanabilirsiniz.)');
+            throw new FinanceException("\"{$cashbox->name}\" bakiyesi yetersiz: mevcut ".Money::formatIn($balance / 100, $cashbox->currency)
+                .', gereken '.Money::formatIn($amount / 100, $cashbox->currency).'.'
+                .($cashbox->isForeign() ? '' : ' (Eksi bakiyeye izin vermek için Kasa ayarlarını kullanabilirsiniz.)'));
         }
+    }
+
+    private function assertBaseCurrency(Cashbox $cashbox, string $operation): void
+    {
+        if ($cashbox->isForeign()) {
+            throw new FinanceException("{$operation} yalnızca TL kasadan yapılabilir. \"{$cashbox->name}\" kasasındaki dövizi önce virmanla TL kasaya aktarın.");
+        }
+    }
+
+    /** Parça, makbuz ve yevmiye açıklamaları için döviz notu */
+    private function foreignNote(Cashbox $cashbox, array $money): string
+    {
+        return $cashbox->isForeign()
+            ? ' ['.Money::formatIn($money['original'] / 100, $cashbox->currency).' × '.Money::formatRate($money['rate']).']'
+            : '';
     }
 
     private function assertSameApartment(int $apartmentId, Cashbox $cashbox, ?Debt $debt = null): void
@@ -839,6 +1381,28 @@ class FinanceService
             'debit' => Money::decimal($debit), 'credit' => Money::decimal($credit),
             'description' => mb_substr($description, 0, 250),
         ]);
+    }
+
+    /** Kapatılan döneme (bu tarih dahil) kayıt eklenemez, oradaki kayıtlar iptal edilemez. */
+    public function assertPeriodOpen(Apartment $apartment, CarbonInterface|string $date): void
+    {
+        $closedUntil = $apartment->closed_until;
+        if ($closedUntil && CarbonImmutable::parse($date)->toDateString() <= $closedUntil->toDateString()) {
+            throw new FinanceException("{$closedUntil->format('d.m.Y')} tarihine kadarki dönem kapalı. Bu döneme kayıt eklenemez ve oradaki kayıtlar değiştirilemez.");
+        }
+    }
+
+    private function assertCashboxActive(Cashbox $cashbox): void
+    {
+        if (! $cashbox->is_active) {
+            throw new FinanceException("\"{$cashbox->name}\" pasif olduğu için işlem yapılamaz.");
+        }
+    }
+
+    private function assertDebtPeriodOpen(Debt $debt): void
+    {
+        $this->assertPeriodOpen($debt->apartment, $debt->due_date);
+        $this->assertPeriodOpen($debt->apartment, $debt->created_at);
     }
 
     public function audit(?Apartment $apartment, ?User $by, string $action, string $module, ?string $reference, array $data = []): void

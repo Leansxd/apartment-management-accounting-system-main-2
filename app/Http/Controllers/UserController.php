@@ -7,6 +7,7 @@ use App\Models\Debt;
 use App\Models\Member;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\ModuleStatsService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -20,7 +21,7 @@ use Illuminate\Validation\Rules\Password;
  */
 class UserController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, ModuleStatsService $stats)
     {
         $search = trim((string) $request->query('q'));
         $role = $request->query('role');
@@ -32,7 +33,8 @@ class UserController extends Controller
                 ->when($search, fn ($q) => $q->where(fn ($w) => $w->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")))
                 ->when(in_array($role, ['admin', 'user'], true), fn ($q) => $q->where('role', $role))
                 ->with(['memberships' => fn ($q) => $q->whereIn('apartment_id', $viewerSiteIds)->with('apartment:id,name', 'unit.block')])
-                ->orderBy('name')->paginate(50)->withQueryString(),
+                ->orderBy('name')->paginate(10)->withQueryString(),
+            'moduleSummary' => $stats->users($viewer),
             'search' => $search,
             'role' => $role,
             'sitesWithUnits' => $viewer->is_super_admin ? Apartment::orderBy('name')->with('units.block')->get(['id', 'name']) : collect(),
@@ -90,6 +92,17 @@ class UserController extends Controller
         });
 
         return back()->with('status', 'Kullanıcı oluşturuldu.');
+    }
+
+    public function update(Request $request, User $user)
+    {
+        $user->update($request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:120', Rule::unique('users', 'email')->ignore($user->id)],
+            'phone' => ['nullable', 'string', 'max:30'],
+        ]));
+
+        return back()->with('status', 'Kullanıcı güncellendi.');
     }
 
     /** Süper admin: rol değiştirir. Kendi rolünü düşüremez. */

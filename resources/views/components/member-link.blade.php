@@ -1,0 +1,3 @@
+@props(['member' => null, 'fallback' => '—'])
+{{-- Sakin adını profil sayfasına bağlar; geçmişe taşınmış sakinde düz metin, sakin yoksa fallback yazar. --}}
+@if (! $member){{ $fallback }}@elseif ($member->trashed()){{ $member->full_name }}@else<a href="{{ route('site.members.show', [$member->apartment_id, $member]) }}" {{ $attributes->merge(['class' => 'hover:text-brand-600 hover:underline']) }}>{{ $member->full_name }}</a>@endif

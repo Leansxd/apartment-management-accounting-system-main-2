@@ -23,6 +23,8 @@ class DatabaseSeeder extends Seeder
 {
     public function run(FinanceService $finance): void
     {
+        config(['audit.record_model_changes' => false]);
+
         $admin = User::create(['name' => 'Demo Yönetici', 'email' => 'admin@demo.test', 'password' => 'password', 'phone' => '0532 100 20 30']);
         $admin->forceFill(['role' => 'admin', 'is_super_admin' => true])->save();
         $resident = User::create(['name' => 'Ayşe Yılmaz', 'email' => 'sakin@demo.test', 'password' => 'password', 'phone' => '0532 400 50 60']);

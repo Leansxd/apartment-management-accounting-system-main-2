@@ -6,53 +6,41 @@ use App\Http\Controllers\Controller;
 use App\Models\Apartment;
 use App\Models\Debt;
 use App\Models\Meeting;
-use App\Models\Member;
 use App\Models\Poll;
 use App\Models\Reservation;
-use App\Services\FinanceException;
-use App\Services\ReservationService;
 use App\Models\SiteNotification;
 use App\Models\Ticket;
 use App\Models\Unit;
+use App\Services\FinanceException;
 use App\Services\ReportService;
-use Illuminate\Database\UniqueConstraintViolationException;
+use App\Services\ReservationService;
+use App\Services\ResidentService;
+use App\Services\TicketService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /** Mobil sakin uçları. Tüm sorgular, sakinin bağlı olduğu dairelerle (unit_ids) sınırlıdır. */
 class ResidentController extends Controller
 {
     /** Davet koduyla daireye bağlanma */
-    public function redeem(Request $request)
+    public function redeem(Request $request, ResidentService $residents)
     {
-        $code = mb_strtoupper(trim((string) $request->validate([
-            'invite_code' => ['required', 'string', 'min:6', 'max:64'],
-        ])['invite_code']));
-        $user = $request->user();
+        $code = $request->validate(['invite_code' => ['required', 'string', 'min:6', 'max:64']])['invite_code'];
 
-        $result = DB::transaction(function () use ($code, $user) {
-            $member = Member::where('invite_code', $code)->lockForUpdate()->first();
-            if (! $member) {
-                return [404, ['message' => 'Davet kodu bulunamadı.']];
-            }
-            if ($member->user_id && $member->user_id !== $user->id) {
-                return [409, ['message' => 'Bu davet kodu başka bir hesap tarafından kullanılmış.']];
-            }
-            $member->update(['user_id' => $user->id, 'activated_at' => $member->activated_at ?? now()]);
-            $member->load('unit.block', 'apartment');
+        try {
+            $member = $residents->redeemInvite($code, $request->user());
+        } catch (FinanceException $e) {
+            return response()->json(['message' => $e->getMessage()], $e->getCode());
+        }
 
-            return [200, [
-                'success' => true,
-                'apartment_id' => $member->apartment_id,
-                'apartment_name' => $member->apartment->name,
-                'unit_id' => $member->unit_id,
-                'unit' => $member->unit->label(),
-                'member_id' => $member->id,
-            ]];
-        });
-
-        return response()->json($result[1], $result[0]);
+        return response()->json([
+            'success' => true,
+            'apartment_id' => $member->apartment_id,
+            'apartment_name' => $member->apartment->name,
+            'unit_id' => $member->unit_id,
+            'unit' => $member->unit->label(),
+            'member_id' => $member->id,
+        ]);
     }
 
     public function debts(Request $request, Apartment $apartment)
@@ -80,6 +68,10 @@ class ResidentController extends Controller
                 'date' => $t->created_at->toIso8601String(),
                 'description' => $t->description,
                 'amount' => (float) $t->amount,
+                'currency' => $t->currency,
+                'original_amount' => (float) $t->original_amount,
+                'exchange_rate' => (float) $t->exchange_rate,
+                'payment_group' => $t->payment_group,
                 'applied_to_debts' => (float) $t->applied_to_debts,
                 'to_advance' => (float) $t->to_advance,
             ]));
@@ -144,7 +136,7 @@ class ResidentController extends Controller
     }
 
     /** Daire başına tek oy */
-    public function vote(Request $request, Apartment $apartment, int $poll)
+    public function vote(Request $request, Apartment $apartment, int $poll, ResidentService $residents)
     {
         $poll = $apartment->polls()->findOrFail($poll);
         $units = $this->units($request);
@@ -152,15 +144,11 @@ class ResidentController extends Controller
             'option_id' => ['required', Rule::exists('poll_options', 'id')->where('poll_id', $poll->id)],
             'unit_id' => ['nullable', Rule::in($units)],
         ]);
-        if (! $poll->isOpen()) {
-            return response()->json(['message' => 'Anket oylamaya kapalı.'], 422);
-        }
 
         try {
-            $poll->votes()->create(['poll_option_id' => $data['option_id'], 'unit_id' => $data['unit_id'] ?? $units[0],
-                'user_id' => $request->user()->id]);
-        } catch (UniqueConstraintViolationException) {
-            return response()->json(['message' => 'Bu daire adına zaten oy kullanıldı.'], 409);
+            $residents->castVote($poll, (int) $data['option_id'], (int) ($data['unit_id'] ?? $units[0]), $request->user());
+        } catch (FinanceException $e) {
+            return response()->json(['message' => $e->getMessage()], $e->getCode());
         }
 
         return response()->json(['success' => true], 201);
@@ -168,11 +156,11 @@ class ResidentController extends Controller
 
     public function tickets(Request $request, Apartment $apartment)
     {
-        return response()->json($apartment->tickets()->where('user_id', $request->user()->id)->latest('id')->limit(50)
+        return response()->json($apartment->tickets()->with('messages:id,ticket_id,is_staff,body,attachment_name,created_at')->where('user_id', $request->user()->id)->latest('id')->limit(50)
             ->get(['id', 'subject', 'description', 'category', 'priority', 'status', 'response', 'unit_no', 'created_at']));
     }
 
-    public function storeTicket(Request $request, Apartment $apartment)
+    public function storeTicket(Request $request, Apartment $apartment, ResidentService $residents)
     {
         $units = $this->units($request);
         $data = $request->validate([
@@ -183,13 +171,30 @@ class ResidentController extends Controller
             'priority' => ['nullable', Rule::in(array_keys(Ticket::PRIORITIES))],
         ]);
         $unit = Unit::with('block')->findOrFail($data['unit_id'] ?? $units[0]);
-        $ticket = $apartment->tickets()->create([
-            'unit_id' => $unit->id, 'unit_no' => $unit->label(), 'user_id' => $request->user()->id,
-            'subject' => $data['subject'], 'description' => $data['description'] ?? null,
-            'category' => $data['category'], 'priority' => $data['priority'] ?? 'normal',
+
+        return response()->json($residents->openTicket($apartment, $unit, $request->user(), $data), 201);
+    }
+
+    public function storeTicketMessage(Request $request, Apartment $apartment, int $ticket, TicketService $tickets)
+    {
+        $ticket = $apartment->tickets()->where('user_id', $request->user()->id)->findOrFail($ticket);
+        $data = $request->validate([
+            'body' => ['nullable', 'required_without:photo', 'string', 'max:3000'],
+            'photo' => TicketService::PHOTO_RULES,
         ]);
 
-        return response()->json($ticket, 201);
+        try {
+            $message = $tickets->addMessage($ticket, $request->user(), false, $data['body'] ?? null, $request->file('photo'));
+        } catch (FinanceException $e) {
+            return response()->json(['message' => $e->getMessage()], $e->getCode());
+        }
+
+        return response()->json($message->only('id', 'body', 'attachment_name', 'created_at'), 201);
+    }
+
+    public function ticketAttachment(Request $request, Apartment $apartment, int $ticket, int $message, TicketService $tickets)
+    {
+        return $tickets->attachmentResponse($apartment->tickets()->where('user_id', $request->user()->id)->findOrFail($ticket)->messages()->findOrFail($message));
     }
 
     /** Rezervasyona açık ortak alanlar */

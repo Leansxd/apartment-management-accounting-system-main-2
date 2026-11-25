@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Property;
+use App\Services\ModuleStatsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -17,7 +18,7 @@ class PropertyController extends Controller
 
     public const DISTANCES = ['Deniz', 'Merkez', 'Havalimanı', 'Hastane', 'Okul'];
 
-    public function index(Request $request)
+    public function index(Request $request, ModuleStatsService $stats)
     {
         $category = $request->query('category');
 
@@ -25,8 +26,9 @@ class PropertyController extends Controller
             'properties' => Property::with('creator')
                 ->when(in_array($category, Property::CATEGORIES, true), fn ($q) => $q->where('category', $category))
                 ->when($request->query('q'), fn ($q, $s) => $q->where(fn ($w) => $w->where('title', 'like', "%{$s}%")->orWhere('location', 'like', "%{$s}%")))
-                ->latest()->paginate(24)->withQueryString(),
+                ->latest()->paginate(12)->withQueryString(),
             'category' => $category,
+            'moduleSummary' => $stats->properties(),
         ]);
     }
 

@@ -12,9 +12,7 @@ use Illuminate\Validation\Rule;
 /** Ortak alanlar (tanım) ve rezervasyonlar */
 class ReservationController extends Controller
 {
-    public function __construct(private ReservationService $service)
-    {
-    }
+    public function __construct(private ReservationService $service) {}
 
     public function index(Request $request, Apartment $apartment)
     {
@@ -25,7 +23,10 @@ class ReservationController extends Controller
             'areas' => $apartment->commonAreas()->orderBy('name')->get(),
             'reservations' => $apartment->reservations()->with('area', 'unit.block', 'user')
                 ->when($status, fn ($q) => $q->where('status', $status))
-                ->orderByDesc('date')->orderByDesc('start_time')->paginate(30)->withQueryString(),
+                ->when($request->integer('common_area_id'), fn ($q, $area) => $q->where('common_area_id', $area))
+                ->when($this->dateQuery($request, 'from'), fn ($q, $date) => $q->whereDate('date', '>=', $date))
+                ->when($this->dateQuery($request, 'to'), fn ($q, $date) => $q->whereDate('date', '<=', $date))
+                ->orderByDesc('date')->orderByDesc('start_time')->paginate(10)->withQueryString(),
             'units' => $apartment->units()->with('block')->get()->sortBy(fn ($u) => [$u->block?->name, (int) $u->unit_no])->values(),
             'pending' => $apartment->reservations()->where('status', 'pending')->count(),
             'status' => $status,

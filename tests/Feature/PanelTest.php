@@ -56,7 +56,7 @@ class PanelTest extends TestCase
         foreach ($pages as $url) {
             $this->actingAs($this->admin)->get($url)->assertOk();
         }
-        $this->actingAs($this->admin)->get(route('site.reports.show', [$a, 'balance', 'format' => 'csv']))
+        $this->actingAs($this->admin)->get(route('site.reports.show', [$a, 'balance', 'format' => 'xlsx']))
             ->assertOk()->assertDownload();
     }
 

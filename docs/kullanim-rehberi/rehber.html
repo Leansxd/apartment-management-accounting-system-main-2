@@ -1,0 +1,460 @@
+<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>Leans Kullanım Rehberi</title><style>
+@page { size: A4; margin: 16mm 15mm 18mm 15mm; @bottom-center { content: counter(page); } }
+@page :first { margin: 0; @bottom-center { content: none; } }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; color: #18181b; font-size: 10.5pt; line-height: 1.5; margin: 0; }
+h1,h2,h3,h4 { line-height: 1.25; }
+.cover { height: 296mm; width: 210mm; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: 0 10mm; page-break-after: always; background: linear-gradient(160deg,#09090b 0%,#1e293b 100%); color: #fff; margin: 0; padding-left: 25mm; }
+.cover .logo { width: 22mm; height: 22mm; border-radius: 5mm; background: #fff; color: #09090b; display:flex; align-items:center; justify-content:center; font-size: 34pt; }
+.cover h1 { font-size: 46pt; margin: 8mm 0 2mm; letter-spacing: -1px; }
+.cover .sub { font-size: 16pt; margin: 0; color: #cbd5e1; }
+.cover .sub2 { font-size: 20pt; margin: 10mm 0 0; font-weight: 600; }
+.cover .date { margin-top: 30mm; color: #94a3b8; }
+.toc { page-break-after: always; }
+.toc h2 { font-size: 22pt; border-bottom: 2px solid #18181b; padding-bottom: 3mm; }
+.toc ol { font-size: 12.5pt; line-height: 2; padding-left: 12mm; }
+.chapter { page-break-before: always; }
+.chapter > h2 { font-size: 21pt; margin: 0 0 2mm; display: flex; align-items: center; gap: 4mm; border-bottom: 2px solid #18181b; padding-bottom: 3mm; }
+.chapter > h2 span { background: #18181b; color: #fff; border-radius: 3mm; min-width: 11mm; height: 11mm; display: inline-flex; align-items: center; justify-content: center; font-size: 14pt; }
+.intro { color: #52525b; font-size: 11.5pt; margin: 3mm 0 6mm; }
+.page { border: 1px solid #e4e4e7; border-radius: 3mm; padding: 5mm 6mm; margin: 0 0 6mm; break-inside: auto; }
+.page h3 { margin: 0 0 2mm; font-size: 14.5pt; color: #0f172a; }
+.page h4 { margin: 4mm 0 1.5mm; font-size: 11pt; color: #334155; text-transform: uppercase; letter-spacing: .3px; }
+h4 { font-size: 12pt; margin: 6mm 0 2mm; }
+.meta { display: flex; flex-wrap: wrap; gap: 2mm 8mm; font-size: 9pt; color: #52525b; background: #f4f4f5; border-radius: 2mm; padding: 2mm 3mm; }
+code { font-family: 'SF Mono', Menlo, monospace; font-size: 8.8pt; background: #f4f4f5; padding: 0 1mm; border-radius: 1mm; }
+.meta code { background: #fff; }
+.purpose { font-size: 11pt; margin: 3mm 0; }
+.head { break-inside: avoid; }
+h4 { break-after: avoid; }
+figure { margin: 3mm 0; break-inside: avoid; }
+figure img { width: 92%; display: block; margin: 0 auto; border: 1px solid #d4d4d8; border-radius: 2mm; }
+figcaption { font-size: 8.5pt; color: #71717a; text-align: center; margin-top: 1mm; }
+ul, ol { margin: 1mm 0 2mm; padding-left: 6mm; }
+li { margin: .8mm 0; }
+.rules { background: #fff7ed; border-left: 3px solid #f59e0b; padding: 1mm 3mm; border-radius: 1mm; }
+.links { color: #1d4ed8; font-size: 10pt; }
+.tip { background: #eff6ff; border-left: 3px solid #2563eb; padding: 2.5mm 3.5mm; margin: 3mm 0; border-radius: 1mm; break-inside: avoid; }
+table { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9.6pt; }
+th { background: #18181b; color: #fff; text-align: left; padding: 2mm; }
+td { border-bottom: 1px solid #e4e4e7; padding: 1.8mm 2mm; vertical-align: top; }
+tr { break-inside: avoid; }
+tr:nth-child(even) td { background: #fafafa; }
+</style></head><body>
+<div class="cover">
+  <div class="logo">⚡</div>
+  <h1>Leans</h1>
+  <p class="sub">Apartman ve Site Yönetimi · Muhasebe Sistemi</p>
+  <p class="sub2">Eksiksiz Kullanım ve Tanıtım Rehberi</p>
+  <p class="date">Kasım 2026 · Her sayfa, her buton, her bağlantı</p>
+</div>
+<div class="toc">
+  <h2>İçindekiler</h2>
+  <ol>
+    <li>Sistem nedir, kimler kullanır?</li>
+    <li>Temel kavramlar (5 dakikada muhasebe)</li>
+    <li>Ekran düzeni ve menü haritası</li>
+    <li>Giriş, hesap ve panolar</li>
+    <li>Yapı, Daire &amp; Sakinler</li>
+    <li>Tahakkuk, Aidat &amp; Sayaç</li>
+    <li>Tahsilat, Kasa &amp; Banka</li>
+    <li>Muhasebe, Defter &amp; Bütçe</li>
+    <li>Gider, Tedarikçi &amp; İK</li>
+    <li>Saha, Envanter &amp; Güvenlik</li>
+    <li>Kurul, İletişim &amp; Arşiv</li>
+    <li>Rapor, Denetim &amp; Ayarlar</li>
+    <li>Sistem yönetimi (süper admin)</li>
+    <li>Sakin portalı ve mobil uygulama</li>
+    <li>Otomatik (gece) işleri</li>
+    <li>Günlük, aylık ve yıllık iş akışları</li>
+    <li>Güvenlik ve veri bütünlüğü</li>
+    <li>Patron sunumu: senaryo ve olası sorular</li>
+    <li>Bilinen eksikler ve yol haritası</li>
+    <li>Sözlük</li>
+  </ol>
+</div>
+<div class="chapter"><h2><span>1</span>Sistem nedir, kimler kullanır?</h2><p class="intro">Leans; birden fazla apartmanı, siteyi veya iş merkezini tek panelden yöneten web tabanlı bir yönetim ve muhasebe sistemidir.</p>
+<p>Sistem iki yüzden oluşur:</p>
+<ul><li><b>Yönetim paneli:</b> yönetici, muhasebeci ve izleyicinin kullandığı ana ekranlar. Aidat yazma, tahsilat, gider, kasa, banka, raporlar, toplantı, arıza, rezervasyon vb. her şey buradan yapılır.</li><li><b>Sakin portalı ve mobil uygulama:</b> sakinin kendi borcunu gördüğü, arıza talebi açtığı, ankete oy verdiği, rezervasyon yaptığı ve duyuruları okuduğu bölüm. Web portalı hazır, mobil uygulama için API hazır.</li></ul>
+<h4>Kim ne yapabilir?</h4>
+<table><thead><tr><th>Rol</th><th>Nerede</th><th>Yetkisi</th></tr></thead><tbody><tr><td>Süper admin</td><td>Tüm sistem</td><td>Bütün siteler, kullanıcı oluşturma ve rol verme, sistem denetim kayıtları, yedek alma ve geri yükleme.</td></tr><tr><td>Site sahibi</td><td>Kendi sitesi</td><td>Siteyi oluşturan kişi. Yönetici yetkilerine ek olarak dönem ve yıl kapatma, dönemi geri açma, siteyi sıfırlama ve silme yalnızca ondadır.</td></tr><tr><td>Yönetici</td><td>Atandığı siteler</td><td>Sitede her modülde tam yetki.</td></tr><tr><td>Muhasebeci</td><td>Atandığı siteler</td><td>Modül modül ayarlanır: erişim yok / görüntüleme / görüntüleme + işlem. Varsayılan: finans modüllerinde işlem, diğerlerinde görüntüleme.</td></tr><tr><td>İzleyici</td><td>Atandığı siteler</td><td>Varsayılan olarak her modülde yalnızca görüntüleme (ör. denetçi, yönetim kurulu üyesi).</td></tr><tr><td>Sakin</td><td>Portal / mobil</td><td>Yalnızca bağlı olduğu dairenin borcu, bildirimleri, anketleri, talepleri, rezervasyonları ve toplantıları.</td></tr></tbody></table>
+<div class="tip"><b>Önemli:</b> Yetki yalnızca menüde gizlenmez, sunucu tarafında zorlanır. Muhasebecinin yetkisi olmayan bir sayfanın adresini elle yazsa bile "yetkiniz yok" (403) hatası alır; yetkisi olmayan butonlar sayfadan otomatik çıkarılır.</div>
+</div><div class="chapter"><h2><span>2</span>Temel kavramlar (5 dakikada muhasebe)</h2><p class="intro">Sistemi anlatabilmek için bilmen gereken 8 kavram. Hepsi bir dairenin hesabı etrafında döner.</p><table><thead><tr><th>Kavram</th><th>Ne demek?</th><th>Örnek</th></tr></thead><tbody><tr><td>Tahakkuk (borç yazma)</td><td>Daireye borç kaydı açmak. Para henüz gelmedi ama gelir doğdu.</td><td>A-5'e Kasım aidatı 1.000 TL yazıldı.</td></tr><tr><td>Tahsilat</td><td>Daireden para almak. Kasa artar, borç düşer.</td><td>A-5 1.000 TL ödedi, borç kapandı.</td></tr><tr><td>Avans</td><td>Dairenin borcundan fazla ödediği para; daire bizde alacaklıdır.</td><td>1.500 TL ödedi: 1.000 borca, 500 avansa.</td></tr><tr><td>Mahsup</td><td>Avansın yeni bir borca otomatik düşülmesi.</td><td>Aralık aidatı yazılınca 500 TL avans düşüldü, kalan borç 500.</td></tr><tr><td>Kasa</td><td>Paranın durduğu yer: nakit kasa, banka hesabı veya döviz kasası.</td><td>Merkez Kasa, Ziraat Bankası, USD Kasa.</td></tr><tr><td>Yevmiye (çift taraflı kayıt)</td><td>Her para hareketi iki satır yazar: bir borç, bir alacak. İkisi hep eşittir.</td><td>Tahsilat: Kasa (borç) 1.000 / Daire hesabı (alacak) 1.000.</td></tr><tr><td>Ters kayıt (iptal)</td><td>Hiçbir kayıt silinmez; hata zıt yönlü yeni kayıtla düzeltilir.</td><td>Yanlış tahsilat iptal edilince kasadan 1.000 çıkar, borç yeniden açılır.</td></tr><tr><td>Dönem kapatma</td><td>Belli bir tarihe kadarki kayıtları kilitlemek.</td><td>31.12.2025'e kadar kapatıldı; o tarihe borç yazılamaz, kayıt iptal edilemez.</td></tr></tbody></table>
+<h4>Bir dairenin hesabı nasıl işler? (Tam örnek)</h4>
+<ol><li><b>Borç yazılır:</b> A-5'e 1.000 TL aidat. Daire borcu 1.000.</li><li><b>Sakin 1.500 TL öder:</b> Sistem parayı en eski vadeli borca yatırır. Borç kapanır, kalan 500 TL avans olur.</li><li><b>Ertesi ay 1.000 TL aidat yazılır:</b> 500 TL avans otomatik düşülür. Kalan borç 500. Sakinin bir şey yapmasına gerek yoktur.</li><li><b>İlk ödeme yanlışsa iptal edilir:</b> Ama avansı başka borçta kullanılmışsa sistem önce o borcun iptal edilmesini ister. Böylece bakiye hiçbir zaman bozulmaz.</li></ol>
+<div class="tip"><b>Patrona söyle:</b> "Her daire bir banka hesabı gibi. Aidat borç yazar, ödeme düşer, fazlası avans olur ve sonraki borca kendiliğinden düşer. Hiçbir kayıt silinmez, düzeltme ters kayıtla yapılır; o yüzden her kuruşun izi var."</div>
+</div><div class="chapter"><h2><span>3</span>Ekran düzeni ve menü haritası</h2><p class="intro">Her sayfa aynı iskeleti kullanır. Bu düzeni bir kez öğrenince bütün sistemde rahat gezersin.</p>
+<h4>Ekranın bölümleri</h4>
+<ul><li><b>Sol dar menü (ikonlar):</b> En üstte ⚡ logo (Genel Portföy Panosu), altında + (yeni kayıt kısayolu) ve ana pano ikonları, sonra 8 menü grubu. Bir ikonun üzerine gelince alt sayfaları açılır. En altta ayarlar ve hesabın (baş harfin) var.</li><li><b>Üst çubuk (sağ üst):</b> <i>Setup</i> (kurulum rehberi), <i>Koyu/Açık Tema</i>, <b>aktif site seçici</b> (hangi sitedeysen onun adı yazar, tıklayıp başka siteye geçersin), site ayarları, son işlemler, <b>arama</b> (daire, sakin, borç, talep, gider arar), bildirim zili ve hesap menüsü (şifre, iki adımlı doğrulama, çıkış).</li><li><b>Sayfa başlığı:</b> Sayfanın adı ve altında hangi site için açık olduğu.</li><li><b>Özet kartları:</b> Çoğu sayfanın üstünde 4-6 kutu (KPI) ve grafikler bulunur. Ör. tahsilat sayfasında 'Bu ay tahsilat', 'Ödeme yapan daire'.</li><li><b>İşlem alanı:</b> '+ Yeni …' başlıklı açılır form kartları. Tıklayınca form açılır.</li><li><b>Liste / tablo:</b> Filtreler, sekmeler (ör. Bekleyen / İşlenen), satır sonunda Düzenle, Sil, Detay, Makbuz gibi düğmeler.</li><li><b>Excel'e aktar ve Yazdır / PDF:</b> Muhasebe ve rapor sayfalarının sağ üstünde.</li></ul>
+<h4>8 menü grubu: ne yapacaksan nereye gidersin?</h4>
+<table><thead><tr><th>Menü grubu</th><th>Alt sayfalar</th><th>Burada ne yapılır</th></tr></thead><tbody><tr><td>Yapı, Daire &amp; Sakinler</td><td>Konut &amp; Siteler · Blok, Daire &amp; Gruplar · Sakin &amp; Üye Listesi · Sakin &amp; Taşınma Geçmişi · Sistem Kullanıcıları · Emlak Portföyü</td><td>Site, blok, daire ve sakin kaydı; kullanıcılar; emlak ilanları.</td></tr><tr><td>Tahakkuk, Aidat &amp; Sayaç</td><td>Aidat &amp; Otomatik Tahakkuk · Borçlandırma &amp; Taksit / İcra · Gecikme Zammı Motoru · Sayaç &amp; Endeks Okuma · Sayaç Faturası Dağıtımı</td><td>Dairelere borç yazmanın bütün yolları.</td></tr><tr><td>Tahsilat, Kasa &amp; Banka</td><td>Tahsilat &amp; Makbuz Kesimi · Kasa &amp; Banka Hesapları · Banka Ekstresi Eşleştirme · Avans &amp; Kredi Mahsup · Finansal Özet &amp; Virman</td><td>Para almak, kasaları yönetmek, bankayla eşleştirmek.</td></tr><tr><td>Muhasebe, Defter &amp; Bütçe</td><td>Gelir - Gider &amp; Kategoriler · Daire Hesap Ekstreleri · Yevmiye Defteri · Kasa Defteri · Mizan Tablosu · Mali Durum / Bilanço · Alacak Yaşlandırma · Bütçe &amp; Gerçekleşen</td><td>Mali tablolar ve muhasebe defterleri.</td></tr><tr><td>Gider, Tedarikçi &amp; İK</td><td>Gider &amp; Fatura Onayı · Tedarikçi &amp; Cari Hesaplar · Personel &amp; Görevliler · Personel Maaş &amp; Bordro</td><td>Faturalar, firmalar, personel ve maaş.</td></tr><tr><td>Saha, Envanter &amp; Güvenlik</td><td>Görev &amp; Bakım Takibi · Stok &amp; Sarf Malzeme · Demirbaş &amp; Zimmet Kaydı · Ortak Alan Rezervasyonu · Güvenlik, Ziyaretçi &amp; Kargo · Arıza &amp; Destek Talepleri</td><td>Günlük işletme ve saha işleri.</td></tr><tr><td>Kurul, İletişim &amp; Arşiv</td><td>Genel Kurul &amp; Toplantılar · Karar Defteri · Duyuru Panosu · Sakin Anketleri &amp; Oylama · Toplu Bildirim Gönderimi · Otomatik Borç Hatırlatıcı · Dijital Belge Arşivi</td><td>Sakinlerle iletişim, kurul ve belgeler.</td></tr><tr><td>Rapor, Denetim &amp; Ayarlar</td><td>Rapor Merkezi (PDF / CSV) · İşlem &amp; Denetim Kayıtları · Site Ayarları &amp; Yöneticiler</td><td>Raporlar, kim ne yaptı kaydı, site ayarları ve izinler.</td></tr></tbody></table>
+<div class="tip"><b>İpucu:</b> Menü kişiye göre filtrelenir. Muhasebecinin "erişim yok" olduğu modül menüde hiç görünmez. Sayfaların çoğu birbirine bağlantı verir: bir borç satırından tahsilata, bir yaşlandırma satırından daire ekstresine, bir tahsilattan makbuza tek tıkla geçilir.</div>
+</div><div class="chapter"><h2><span>4</span>Giriş, hesap ve panolar</h2><p class="intro">Sisteme giriş ve ilk karşılaşılan ekranlar.</p><section class="page"><div class="head"><h3>Giriş ekranı</h3>
+<div class="meta"><span><b>Menü:</b> —</span><span><b>Adres:</b> <code>/login</code></span></div>
+<p class="purpose">Sisteme e-posta ve şifreyle girilen ekran. Yönetici de sakin de buradan girer; sistem kullanıcının rolüne göre paneli veya sakin portalını açar.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>E-posta ve şifreyle giriş (Göster düğmesi şifreyi gösterir).</li><li><b>Şifremi unuttum:</b> e-postaya sıfırlama bağlantısı gönderir (/forgot-password).</li><li><b>İki adımlı doğrulama açıksa:</b> şifreden sonra telefondaki 6 haneli kod veya kurtarma kodu istenir.</li><li><b>Hesap aç:</b> sakinler davet koduyla kendi hesabını açar (/portal/join).</li><li>Demo kurulumda 'Demo yönetici' ve 'Demo sakin' hızlı giriş düğmeleri bulunur.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Çok sayıda hatalı giriş denemesi geçici olarak engellenir (hız sınırı).</li><li>Demo hesapları canlı ortamda bırakılmamalıdır; üretim kontrolü bunu engel olarak raporlar.</li></ul></div>
+</section><section class="page"><div class="head"><h3>Genel Portföy Panosu</h3>
+<div class="meta"><span><b>Menü:</b> ⚡ logo / Genel Portföy Panosu</span><span><b>Adres:</b> <code>/</code></span></div>
+<p class="purpose">Yöneticinin eriştiği tüm sitelerin tek bakışta özeti. Patrona ilk göstereceğin ekran budur.</p>
+<figure><img src="img/portfoy.jpg"><figcaption>Genel Portföy Panosu ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Özet kartları:</b> Toplam tahakkuk, tahsil edilen, bekleyen alacak (gecikmiş dahil), toplam kasa ve banka, ödenen kayıtlar, portföy ve yapı (site, sakin, kullanıcı sayısı).</li><li><b>Portföy Gelir ve Tahakkuk Özeti grafiği:</b> Tüm sitelerde günlük tahsilat, tahakkuk ve gider. Sağ üstten 30 gün / 12 ay seçilir.</li><li><b>Portföy Operasyonel Uyarılar:</b> Onay bekleyen gider, eşleşmemiş banka satırı, icra takibindeki borç, onay bekleyen rezervasyon, kritik stok kalemi, açık destek talepleri. Her satır ilgili sayfaya götürür.</li><li>Alt bölümde: Yönetilen Siteler, Son İşlemler ve Kullanıcılar sekmeleri.</li><li><b>Konut Seç / Ekle</b> ile siteye geç, <b>Yeni Tahakkuk</b> ile borç yazma ekranına git.</li></ul>
+<h4>Bağlantılı sayfalar</h4><p class="links">Konut &amp; Siteler · Site Finans Panosu · Sistem Kullanıcıları</p>
+<div class="tip"><b>Patrona söyle:</b> "Beş sitenin toplam tahsilatını, borcunu, kasasını ve bekleyen işlerini tek ekranda görüyorum."</div>
+</section><section class="page"><div class="head"><h3>Site Finans Panosu</h3>
+<div class="meta"><span><b>Menü:</b> Sol menü / Site Finans Panosu</span><span><b>Adres:</b> <code>/sites/{id}</code></span></div>
+<p class="purpose">Seçili tek sitenin yönetim ve muhasebe panosu. Bir siteye girince ilk açılan sayfadır.</p>
+<figure><img src="img/site-pano.jpg"><figcaption>Site Finans Panosu ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Kartlar:</b> Toplam tahakkuk (tahsil oranıyla), tahsil edilen, bekleyen alacak (geciken kısmı), kasa ve banka mevcudu (avans bilgisiyle), dönem giderleri (onay bekleyen sayısı), daire ve doluluk.</li><li><b>Gelir ve Tahakkuk Özeti:</b> Günlük tahsilat, tahakkuk ve gider grafiği; altında dönem tahsilatı, dönem gideri, net nakit akışı ve 7 gün içinde vadesi gelen borç.</li><li><b>Tahsilat Hunisi &amp; Kasa:</b> Borç kaydı → vadesi gelen → ödemesi başlayan → tamamen kapanan; altında kasa ve banka hesapları ve 'Virman / Ekle' kısayolu.</li><li><b>Son Hareketler</b> ve <b>Borçlu Daireler</b> listeleri.</li><li>Üstte hızlı düğmeler: <b>Tahsilat Al</b>, <b>Gider Gir</b>, <b>Yeni Tahakkuk</b>.</li></ul>
+<h4>Bağlantılı sayfalar</h4><p class="links">Tahsilat · Gider Yönetimi · Borçlandırma · Kasa &amp; Banka</p>
+</section><section class="page"><div class="head"><h3>Hesabım: şifre ve iki adımlı doğrulama</h3>
+<div class="meta"><span><b>Menü:</b> Sağ üst hesap menüsü</span><span><b>Adres:</b> <code>/account/password · /account/two-factor</code></span></div>
+<p class="purpose">Kullanıcının kendi güvenlik ayarları.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Şifremi Değiştir:</b> mevcut şifre, yeni şifre (en az 8 karakter) ve tekrarı.</li><li><b>İki Adımlı Doğrulama:</b> Kuruluma başla → telefonda Google Authenticator vb. ile QR kodu okut (okutamazsan anahtarı elle gir) → 6 haneli kodla onayla. Açıldıktan sonra kurtarma kodları gösterilir; yenilenebilir. Kapatmak için mevcut şifre istenir.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Telefonunu ve kurtarma kodlarını kaybeden yöneticinin iki adımlı doğrulaması sunucudan komutla kapatılabilir (<code>php artisan app:disable-two-factor e-posta</code>).</li></ul></div>
+</section></div><div class="chapter"><h2><span>5</span>Yapı, Daire &amp; Sakinler</h2><p class="intro">Her şeyin temeli: site → blok → daire → sakin.</p><section class="page"><div class="head"><h3>Konut &amp; Siteler</h3>
+<div class="meta"><span><b>Menü:</b> Yapı, Daire &amp; Sakinler → Konut &amp; Siteler</span><span><b>Adres:</b> <code>/sites</code></span></div>
+<p class="purpose">Erişebildiğin bütün siteler kart olarak listelenir; yeni site buradan açılır.</p>
+<figure><img src="img/siteler.jpg"><figcaption>Konut &amp; Siteler ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Her kartta: site kodu, adı, şehri, blok / daire / sakin sayısı, tahsilat oranı, gecikmiş borç, kasa ve açık talep sayısı. Karta tıklayınca Site Finans Panosu açılır.</li><li><b>+ Yeni site oluştur:</b> Site adı, site kodu (davet kodlarında kullanılır, ör. YVADI), şehir, bloklar (virgülle: A,B,C) ve adres.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Site oluşunca 'Merkez Kasa' ve standart gelir / gider kategorileri otomatik eklenir.</li><li>Oluşturan kişi sitenin sahibi ve yöneticisi olur.</li></ul></div>
+</section><section class="page"><div class="head"><h3>Blok, Daire &amp; Gruplar</h3>
+<div class="meta"><span><b>Menü:</b> Yapı, Daire &amp; Sakinler → Blok, Daire &amp; Gruplar</span><span><b>Adres:</b> <code>/sites/{id}/units</code></span></div>
+<p class="purpose">Sitenin fiziksel yapısı: bloklar, daireler ve daire grupları. Sistemin merkezi dairedir; borç kişiye değil daireye yazılır.</p>
+<figure><img src="img/daireler.jpg"><figcaption>Blok, Daire &amp; Gruplar ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Özet:</b> toplam daire, doluluk, toplam alan (m²), toplam arsa payı, borçlu daire, avanslı daire; bloklara ve kullanım türüne göre dağılım; en borçlu daireler.</li><li><b>Bloklar:</b> blok ekle, adını düzenle, sil.</li><li><b>Daire Ekle:</b> blok, daire no, kat, brüt m², kullanım (konut, işyeri…), durum (dolu / boş), arsa payı.</li><li><b>Toplu ekle:</b> blok, ilk no ve son no girip tek seferde onlarca daire oluştur (m² isteğe bağlı).</li><li><b>Daireler listesi:</b> her daireyi düzenle veya sil; daire adına tıklayınca daire detayı açılır.</li><li><b>Daire Grupları:</b> ör. 'Dükkanlar', 'Çatı katları'. Borç dağıtırken hedef olarak seçilebilir.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Açık borcu, avans bakiyesi veya kayıtlı sakini olan daire silinemez.</li><li>m² ve arsa payı, m² başına ve arsa payına göre aidat hesabında kullanılır; boş bırakılan daire o tanımda atlanır ve raporlanır.</li></ul></div>
+<h4>Bağlantılı sayfalar</h4><p class="links">Daire detayı (sakinler, borçlar, ödemeler) · Daire Hesap Ekstresi · Tahsilat</p>
+</section><section class="page"><div class="head"><h3>Daire detayı</h3>
+<div class="meta"><span><b>Menü:</b> Daire listesinde daireye tıkla</span><span><b>Adres:</b> <code>/sites/{id}/units/{daire}</code></span></div>
+<p class="purpose">Tek dairenin kimlik kartı.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Dairedeki sakinler, dairenin bütün borçları ve ödemeleri.</li><li>Kısayollar: bu daireden tahsilat al, hesap ekstresini aç.</li></ul>
+</section><section class="page"><div class="head"><h3>Sakin &amp; Üye Listesi</h3>
+<div class="meta"><span><b>Menü:</b> Yapı, Daire &amp; Sakinler → Sakin &amp; Üye Listesi</span><span><b>Adres:</b> <code>/sites/{id}/members</code></span></div>
+<p class="purpose">Dairelerde oturan mülk sahipleri ve kiracılar.</p>
+<figure><img src="img/sakinler.jpg"><figcaption>Sakin &amp; Üye Listesi ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Özet:</b> toplam sakin, mülk sahibi, kiracı, mobil bağlı oranı, iletişimsiz (telefon ve e-postası olmayan), bu ay eklenen.</li><li><b>+ Yeni üye ekle:</b> daire, tür (Mülk Sahibi / Kiracı), ad soyad, telefon, e-posta, daireye giriş tarihi, TC kimlik no, acil durum telefonu, adres, notlar.</li><li>Eklenen her üyeye otomatik <b>davet kodu</b> üretilir (ör. YVADI-A1-SJYAQ2F3). Sakin bu kodla portalda veya mobil uygulamada kendi hesabını bağlar.</li><li>Filtre: tür, blok, mobil durumu; ad, telefon, e-posta ile arama. Satırda <b>Detay</b>.</li></ul>
+<h4>Bağlantılı sayfalar</h4><p class="links">Üye detayı · Sakin &amp; Taşınma Geçmişi</p>
+</section><section class="page"><div class="head"><h3>Üye detayı</h3>
+<div class="meta"><span><b>Menü:</b> Sakin listesinde Detay</span><span><b>Adres:</b> <code>/sites/{id}/members/{üye}</code></span></div>
+<p class="purpose">Tek sakinin bilgileri ve mobil erişimi.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Bilgileri düzenle ve kaydet.</li><li><b>Mobil erişim:</b> 'Yeni davet kodu üret' (eski kod geçersiz olur) ve 'Mobil bağlantıyı kaldır' (sakinin hesapla bağı kopar, yeni kod üretilir).</li><li><b>Geçmişe taşı (daireden ayrıldı / devir):</b> ayrılış tarihi ve neden. Üye silinmez, geçmişe taşınır; mobil erişimi hemen biter.</li><li><b>Kalıcı olarak sil:</b> yalnızca hiçbir tahsilatta 'ödeyen' olarak geçmiyorsa.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Sakin taşınsa bile eski borçlar dairede kalır; yeni sakin dairenin hesabını devralır.</li></ul></div>
+</section><section class="page"><div class="head"><h3>Sakin &amp; Taşınma Geçmişi</h3>
+<div class="meta"><span><b>Menü:</b> Yapı, Daire &amp; Sakinler → Sakin &amp; Taşınma Geçmişi</span><span><b>Adres:</b> <code>/sites/{id}/member-history</code></span></div>
+<p class="purpose">Daireden ayrılan veya devreden eski sakinlerin listesi.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Geri al:</b> yanlışlıkla geçmişe taşınan üyeyi geri getirir.</li><li><b>Kalıcı sil:</b> tahsilatta ödeyen olarak geçmiyorsa tamamen siler.</li></ul>
+</section><section class="page"><div class="head"><h3>Sistem Kullanıcıları</h3>
+<div class="meta"><span><b>Menü:</b> Yapı, Daire &amp; Sakinler → Sistem Kullanıcıları</span><span><b>Adres:</b> <code>/users</code></span></div>
+<p class="purpose">Sisteme giriş yapan hesaplar. Yönetici yalnızca kendi sitelerinin sakinlerini ve yöneticilerini görür; süper admin herkesi görür.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Filtrele ve listele; kullanıcıya tıklayınca detay: yetki, yönettiği siteler, daireleri, borçları.</li><li><b>Yalnızca süper admin:</b> kullanıcı oluştur (ad, e-posta, şifre, rol, sakinse blok/daire ve sakin türü), rolünü değiştir, bilgilerini güncelle, kullanıcıyı sil.</li></ul>
+</section><section class="page"><div class="head"><h3>Emlak Portföyü</h3>
+<div class="meta"><span><b>Menü:</b> Yapı, Daire &amp; Sakinler → Emlak Portföyü</span><span><b>Adres:</b> <code>/properties</code></span></div>
+<p class="purpose">Satılık / kiralık emlak ilanlarının kaydı. Muhasebeden bağımsız ek bir modüldür.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>İlan ekle: başlık, kategori, durum, fiyat, konum, video bağlantısı, açıklama, özellikler, en fazla 10 görsel (her biri 5 MB), danışman ve telefonu.</li><li>Filtrele, düzenle, sil.</li></ul>
+</section></div><div class="chapter"><h2><span>6</span>Tahakkuk, Aidat &amp; Sayaç</h2><p class="intro">Dairelere borç yazmanın bütün yolları: düzenli aidat, tek seferlik borç, gecikme zammı, sayaç faturası, ayrıca giderin daireye yansıtılması (Bölüm 9) ve ücretli rezervasyon (Bölüm 10).</p><section class="page"><div class="head"><h3>Aidat &amp; Otomatik Tahakkuk</h3>
+<div class="meta"><span><b>Menü:</b> Tahakkuk, Aidat &amp; Sayaç → Aidat &amp; Otomatik Tahakkuk</span><span><b>Adres:</b> <code>/sites/{id}/dues</code></span></div>
+<p class="purpose">Aidat motoru. Bir kez tanım yaparsın, sistem her ay ilgili dairelere borcu kendisi yazar.</p>
+<figure><img src="img/aidat.jpg"><figcaption>Aidat &amp; Otomatik Tahakkuk ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Özet:</b> aktif tanım sayısı, aylık beklenen, bu dönem tahakkuk ve tahsilat, son çalıştırma dönemi, otomatik üretim açık/kapalı; son 6 dönem tahakkuk-tahsilat grafiği.</li><li><b>Aidat / borç tanımı:</b> ad (ör. Aidat, Yakıt Avansı), <b>hesaplama</b> (Sabit tutar daire başı · m² başına · Arsa payına göre: toplam tutar dairelere bölünür), sorumlu (mülk sahibi / kiracı / daire geneli), tutar, son ödeme günü (ayın kaçı), hedef (tüm site / blok / tek daire), kategori.</li><li>Tanımı düzenle, aktif/pasif yap, sil.</li><li><b>Dönem borçlarını üret:</b> dönemi (ay) seç → <b>Aktif tanımları çalıştır</b>. 'Bu dönemde silinen borçları da yeniden yaz' işaretlenmezse silinmiş borçlar geri gelmez.</li><li><b>Aidatları her gece otomatik üret:</b> açılırsa sistem her gece o ayın borçlarını yazar; ay içinde eklenen daireler de borçlanır.</li></ul>
+<h4>Adım adım</h4><ol><li>Tanımı oluştur (ör. Aidat, Sabit, 1.200 TL, vade günü 20, hedef tüm site).</li><li>Dönemi seç ve 'Aktif tanımları çalıştır'.</li><li>Sonuç mesajında kaç borç yazıldığını, kaçının zaten var olduğu için atlandığını gör.</li><li>İstersen otomatik üretimi aç; bir daha elle çalıştırmana gerek kalmaz.</li></ol>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li><b>Mükerrer olmaz:</b> Aynı dönemi tekrar çalıştırmak ikinci borç yazmaz (her borcun dönem + tanım + daire anahtarı vardır).</li><li>Tanımda yapılan değişiklik sonraki üretimlerde geçerlidir; yazılmış borçlar değişmez.</li><li>Kayıtlı ayın günü kısa aya denk gelirse (ör. 31 Şubat) ayın son gününe çekilir.</li><li>Dairenin avansı varsa yeni borçtan otomatik düşülür.</li><li>Kapalı döneme aidat üretilemez.</li></ul></div>
+<div class="tip"><b>Patrona söyle:</b> "Aidatı her ay elle yazmıyoruz; tanımı bir kez yapıyoruz, gece kendiliğinden yazılıyor. İki kez çalışsa bile mükerrer borç oluşmuyor."</div>
+</section><section class="page"><div class="head"><h3>Borçlandırma &amp; Taksit / İcra</h3>
+<div class="meta"><span><b>Menü:</b> Tahakkuk, Aidat &amp; Sayaç → Borçlandırma &amp; Taksit / İcra</span><span><b>Adres:</b> <code>/sites/{id}/debts</code></span></div>
+<p class="purpose">Aidat dışı tek seferlik borçlar (ek bütçe, tamirat payı, demirbaş katkısı) ve bütün borç kayıtlarının yönetimi.</p>
+<figure><img src="img/borclar.jpg"><figcaption>Borçlandırma &amp; Taksit / İcra ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Özet:</b> açık borç, gecikmiş, 30 gün içinde vadeli, tahsil oranı, icra takibinde, toplam tahakkuk; kategoriye ve bloğa göre açık borç; en borçlu daireler.</li><li><b>+ Borç dağıt:</b> hedef (tüm daireler / blok / grup / tek daire), kategori, açıklama, daire başı tutar, sorumlu, son ödeme tarihi → <b>Borçları oluştur</b>. Dairenin avansı varsa borçtan otomatik düşülür.</li><li><b>Borç kayıtları:</b> daire, durum, açıklama, blok, tür, kategori, tarih aralığı ve 'İcradakiler' ile filtre.</li><li>Satır işlemleri: <b>Düzenle</b> (açıklama, vade, tutar, kategori, sorumlu), <b>Sil</b>, <b>Taksitlendir</b> (taksit sayısı 2-36, ilk taksit tarihi, aralık 1-12 ay), <b>İcra</b> işaretle / kaldır (not ile).</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Ödeme alınmış borcun yalnızca açıklaması ve vadesi değişir; tutar ve kategori değiştirilemez.</li><li>Tahsilat yapılmış borç silinemez; önce tahsilat iptal edilmelidir.</li><li>Silinen borç için ters yevmiye kaydı atılır. Borca bağlı gecikme zamları ve taksitler de birlikte silinir.</li><li>Aidat borcu silinirse o dönem + daire işaretlenir; aidat motoru onu yeniden üretmez.</li><li>Taksitlendirmede ödenmemiş kısım kapatılır, eşit taksitler (kuruş kaybı olmadan) yeni borç olarak yazılır.</li><li>Gecikme zammı taksitlendirilemez ve düzenlenemez (gerekirse silinir).</li></ul></div>
+<h4>Bağlantılı sayfalar</h4><p class="links">Tahsilat · Gider Yönetimi (daireye yansıtılan giderler) · Alacak Yaşlandırma</p>
+</section><section class="page"><div class="head"><h3>Gecikme Zammı Motoru</h3>
+<div class="meta"><span><b>Menü:</b> Tahakkuk, Aidat &amp; Sayaç → Gecikme Zammı Motoru</span><span><b>Adres:</b> <code>/sites/{id}/late-fees</code></span></div>
+<p class="purpose">Vadesi geçen borçlara aylık gecikme tazminatı hesaplar ve borç olarak yazar.</p>
+<figure><img src="img/gecikme.jpg"><figcaption>Gecikme Zammı Motoru ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Ayarlar:</b> 'Gecikme zammı uygulansın' (kapalıyken hiç hesaplanmaz), 'Her gece otomatik yazılsın', aylık oran (%), ek süre (gün). Not: Kat Mülkiyeti Kanunu m.20'ye göre aylık %5.</li><li><b>Yazılacak gecikme zammı:</b> hesap tarihi seç → <b>Önizle</b> → daire daire yazılacak kalemleri gör → <b>Hesapla ve borç olarak yaz</b>.</li><li>Özet: yazılan zam, tahsil edilen, kalan, bu ay yazılan, zam alan daire, otomatik yazım durumu.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Vade + ek süre geçtikten sonra tamamlanan her ay için bir zam yazılır: tutar = o anki kalan borç × aylık oran.</li><li>Aynı borcun aynı ayı için ikinci kez zam yazılmaz.</li><li>Zamma zam işlemez; yalnızca aidat ve taksit borçlarına uygulanır.</li><li>Silinen bir zam kalemi bir daha yazılmaz (affedilmiş sayılır).</li></ul></div>
+</section><section class="page"><div class="head"><h3>Sayaç &amp; Endeks Okuma</h3>
+<div class="meta"><span><b>Menü:</b> Tahakkuk, Aidat &amp; Sayaç → Sayaç &amp; Endeks Okuma</span><span><b>Adres:</b> <code>/sites/{id}/meters</code></span></div>
+<p class="purpose">Su, elektrik, doğalgaz, ısınma sayaçları ve dönemsel okumalar.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Sayaç ekle: ad, tür, bağlı daire (boşsa ortak alan), seri no, ilk endeks.</li><li>Okuma gir: yeni endeks, tarih, not. Tüketim önceki okumadan otomatik hesaplanır.</li><li>Okumayı düzenle / sil, sayacı düzenle / sil.</li></ul>
+<h4>Bağlantılı sayfalar</h4><p class="links">Sayaç Faturası Dağıtımı (tüketime göre dağıtım bu okumaları kullanır)</p>
+</section><section class="page"><div class="head"><h3>Sayaç Faturası Dağıtımı</h3>
+<div class="meta"><span><b>Menü:</b> Tahakkuk, Aidat &amp; Sayaç → Sayaç Faturası Dağıtımı</span><span><b>Adres:</b> <code>/sites/{id}/meter-bills</code></span></div>
+<p class="purpose">Ortak su, ısınma veya doğalgaz faturasını dairelere paylaştırıp her payı borç olarak yazar.</p>
+<figure><img src="img/sayac-fatura.jpg"><figcaption>Sayaç Faturası Dağıtımı ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Adım adım</h4><ol><li>Sayaç türü, dağıtım yöntemi (<b>tüketime göre</b> / <b>m²'ye göre</b> / <b>eşit</b>), dönem başlangıcı ve bitişi, fatura tutarı, açıklama ve son ödeme tarihini gir.</li><li><b>Önizle:</b> her dairenin ağırlığını ve payını gör.</li><li><b>Dağıt ve borç yaz:</b> paylar dairelere borç olarak yazılır.</li><li>Hata varsa 'Geçmiş dağıtımlar'dan <b>İptal et</b>.</li></ol>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Paylar kuruşu kuruşuna fatura tutarına eşittir (yuvarlama kaybı yoktur).</li><li>'Tüketime göre' için sayaçların daireye bağlı olması ve dönem içinde okuma girilmiş olması gerekir.</li><li>Dairelerden biri bile ödeme yaptıysa dağıtım iptal edilemez (hiçbir pay silinmez).</li></ul></div>
+</section></div><div class="chapter"><h2><span>7</span>Tahsilat, Kasa &amp; Banka</h2><p class="intro">Paranın girdiği ve durduğu yerler.</p><section class="page"><div class="head"><h3>Tahsilat &amp; Makbuz Kesimi</h3>
+<div class="meta"><span><b>Menü:</b> Tahsilat, Kasa &amp; Banka → Tahsilat &amp; Makbuz Kesimi</span><span><b>Adres:</b> <code>/sites/{id}/collections</code></span></div>
+<p class="purpose">Sakinden para alma ekranı. En çok kullanılan sayfadır.</p>
+<figure><img src="img/tahsilat.jpg"><figcaption>Tahsilat &amp; Makbuz Kesimi ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Özet:</b> bu ay tahsilat (geçen aya göre), bugün, işlem sayısı, ortalama tahsilat, ödeme yapan daire, bu ay avansa giden; son 6 ay grafiği; kasaya göre dağılım.</li><li><b>Son tahsilatlar:</b> tarih, kasa, yöntem filtresi; her satırda makbuz ve <b>Hareketi iptal et</b> (iptal nedeni zorunlu).</li></ul>
+<h4>Adım adım</h4><ol><li><b>1. Daire seçin:</b> listeden daireyi seç. Açık borçları listelenir.</li><li><b>2. Tahsilatı kaydedin:</b> İstersen <b>Ödeyen</b> sakini seç, <b>öncelikli borcu</b> seç veya borçların yanına tutar yaz ('Tamamı' düğmesi kalanın tamamını yazar).</li><li>Ödeme parçasını gir: kasa / banka, tutar, döviz kasasıysa kur, ödeme şekli (nakit, havale, POS…). Farklı kasalara bölünmüş ödeme için <b>+ Ödeme parçası ekle</b>.</li><li>Açıklama yaz → <b>Tahsilatı kaydet</b>. Makbuz otomatik oluşur.</li></ol>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Dağıtım sırası: önce elle tutar yazılan borçlar, sonra seçilen öncelikli borç, sonra en eski vadeli borçlar. Artan para TL avans olur.</li><li>Ödeyen sakin seçilirse otomatik dağıtım yalnızca onun sorumlu olduğu ve daire geneli borçlara yapılır (kiracı ödüyorsa mülk sahibinin borcuna yazılmaz).</li><li>Parçalardan biri hatalıysa hiçbiri kaydedilmez.</li><li>Döviz kasasına giren para, girilen kurla TL karşılığıyla borca yazılır.</li><li>İptalde ödenen borçlar yeniden açılır, avans geri alınır; avans başka borçta kullanılmışsa önce o borç iptal edilmelidir.</li></ul></div>
+<h4>Bağlantılı sayfalar</h4><p class="links">Makbuz · Daire Hesap Ekstresi · Kasa &amp; Banka</p>
+<div class="tip"><b>Patrona söyle:</b> "Tahsilatı daireyi seçip tutarı yazarak tek ekrandan alıyoruz; sistem parayı en eski borçtan kapatıyor, fazlasını avansa atıyor, makbuzu kendisi kesiyor."</div>
+</section><section class="page"><div class="head"><h3>Makbuz</h3>
+<div class="meta"><span><b>Menü:</b> Tahsilat listesinde, ekstrede, kasa hareketinde 'Makbuz'</span><span><b>Adres:</b> <code>/sites/{id}/transactions/{hareket}/receipt</code></span></div>
+<p class="purpose">Tahsilat makbuzu. Numarası M-000123 biçimindedir.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Yazdır / PDF:</b> tarayıcıdan yazdırılır veya PDF olarak kaydedilir.</li><li>Makbuzda tutar yazıyla, düzenleyen kişi ve site adı yer alır.</li></ul>
+</section><section class="page"><div class="head"><h3>Kasa &amp; Banka Hesapları</h3>
+<div class="meta"><span><b>Menü:</b> Tahsilat, Kasa &amp; Banka → Kasa &amp; Banka Hesapları</span><span><b>Adres:</b> <code>/sites/{id}/cashboxes</code></span></div>
+<p class="purpose">Sitenin bütün kasaları ve banka hesapları; borçla ilişkisiz gelir-gider kaydı, virman ve kategoriler.</p>
+<figure><img src="img/kasa.jpg"><figcaption>Kasa &amp; Banka Hesapları ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Özet:</b> toplam likidite, nakit, banka, bu ay giren / çıkan / net akış; son 12 ay nakit akışı grafiği; kasa bakiyeleri.</li><li><b>Kasa kartları:</b> her kasada bakiye, Düzenle, Pasife al, Sil.</li><li><b>Gelir / gider kaydı:</b> borçla ilgisi olmayan hareketler (ör. otopark kirası geliri, banka masrafı): tür, kasa, kategori, tutar, kur, açıklama.</li><li><b>Virman (kasalar arası):</b> kaynak kasa, hedef kasa, çıkan tutar; para birimleri farklıysa hedef kasaya giren tutar (döviz bozdurma / alma).</li><li><b>Yeni kasa / banka hesabı:</b> ad, tür (nakit / banka), para birimi (TRY, USD, EUR…), IBAN / hesap no, açılış bakiyesi ve döviz için açılış kuru.</li><li><b>Kategoriler:</b> gelir / gider kategorisi ekle, adını değiştir, kullanılmamışsa sil.</li><li><b>Kasa hareketleri:</b> tüm giriş-çıkışlar; satırdan makbuz ve iptal.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Kasa eksiye düşemez (Site Ayarları'ndan 'Kasa bakiyesi eksiye düşebilsin' açılmadıkça). Döviz kasası hiçbir zaman eksiye düşmez.</li><li>Bakiyesi olan kasa pasife alınamaz; son aktif kasa kapatılamaz; hareket görmüş kasa silinemez (pasife alınır).</li><li>Virman iptal edilemez; ters yönde yeni virman yapılır.</li><li>Döviz kasasının TL değeri ağırlıklı ortalama maliyetle tutulur; bozdururken oluşan fark 'kur farkı' olarak ayrıca kaydedilir.</li><li>Kullanılmış kategori silinemez, yalnızca adı değiştirilir.</li></ul></div>
+</section><section class="page"><div class="head"><h3>Banka Ekstresi Eşleştirme</h3>
+<div class="meta"><span><b>Menü:</b> Tahsilat, Kasa &amp; Banka → Banka Ekstresi Eşleştirme</span><span><b>Adres:</b> <code>/sites/{id}/bank</code></span></div>
+<p class="purpose">Bankadan indirilen ekstreyi (CSV) yükleyip satırları tahsilata, gelire veya gidere dönüştürür; banka ile kasa defterini karşılaştırır.</p>
+<figure><img src="img/banka.jpg"><figcaption>Banka Ekstresi Eşleştirme ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Durum kutusu:</b> bekleyen, işlenen, yok sayılan satır sayısı ve tutarı.</li><li><b>Ekstrede karşılığı olmayan kasa hareketleri:</b> ekstre tarihlerinde kasada kayıtlı ama bankada görünmeyen hareketler; eksik veya hatalı giriş olabilir.</li><li>İşlenen satırdan makbuza gidilir.</li></ul>
+<h4>Adım adım</h4><ol><li>Bankanın internet şubesinden hesap hareketlerini Excel olarak indir, 'CSV olarak kaydet'.</li><li><b>Banka hesabını</b> ve <b>CSV dosyasını</b> seç → <b>Yükle</b>. Başlık satırında Tarih, Açıklama ve Tutar (veya Giriş/Çıkış) sütunları olmalıdır.</li><li>Açıklamasında daire (A-5, Daire 5) veya sakin adı geçen gelen satırlar otomatik o daireyle eşleşir.</li><li><b>Bekleyen</b> sekmesinde her satır için: gelen paraysa daire seç → <b>Tahsil et</b> (daire yoksa kategori seç → <b>Gelir yaz</b>); giden paraysa kategori seç → <b>Gider yaz</b> veya <b>Mevcut gidere bağla</b> ile bekleyen bir faturayı öde; ilgisizse <b>Yok say</b>.</li><li>Eşleşen bütün gelen satırları tek seferde işlemek için <b>Eşleşenleri toplu işle</b>.</li></ol>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Aynı ekstreyi tekrar yüklemek mükerrer satır oluşturmaz.</li><li>Satır, bankadaki kendi tarihiyle kaydedilir; kapalı döneme düşen satır işlenmez.</li><li>Mevcut gidere bağlanan satır yeni gider açmaz, faturayı öder (çift gider olmaz).</li><li>İşlenmiş bir hareket iptal edilirse banka satırı yeniden 'bekleyen' olur.</li></ul></div>
+</section><section class="page"><div class="head"><h3>Avans &amp; Kredi Mahsup</h3>
+<div class="meta"><span><b>Menü:</b> Tahsilat, Kasa &amp; Banka → Avans &amp; Kredi Mahsup</span><span><b>Adres:</b> <code>/sites/{id}/advances</code></span></div>
+<p class="purpose">Fazla ödeme yapmış (avansı olan) daireler.</p>
+<figure><img src="img/avans.jpg"><figcaption>Avans &amp; Kredi Mahsup ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Özet: toplam avans, avanslı daire, ortalama, mahsup edilebilir (açık borcu da olan) daire.</li><li><b>Borca mahsup et:</b> dairenin avansını açık borçlarına en eski vadeden başlayarak düşer.</li><li><b>İade et:</b> avansı TL kasadan sakine geri öder.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Yeni borç yazılınca avans zaten otomatik düşülür; bu sayfa elle mahsup ve iade içindir.</li><li>İade avansı aşamaz ve yalnızca TL kasadan yapılır.</li></ul></div>
+</section><section class="page"><div class="head"><h3>Finansal Özet &amp; Virman</h3>
+<div class="meta"><span><b>Menü:</b> Tahsilat, Kasa &amp; Banka → Finansal Özet &amp; Virman</span><span><b>Adres:</b> <code>/sites/{id}/finance</code></span></div>
+<p class="purpose">Finansın tek sayfalık özeti.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Kasalar ve bakiyeleri, tahsilat performansı, onay bekleyen giderler ve son hareketler.</li><li>Kartlardan Kasa &amp; Banka (virman burada yapılır), Tahsilat, Borçlandırma ve Gider sayfalarına geçilir.</li></ul>
+</section></div><div class="chapter"><h2><span>8</span>Muhasebe, Defter &amp; Bütçe</h2><p class="intro">Mali tablolar. Bu sayfalarda veri girilmez (elle fiş ve bütçe hariç); diğer modüllerde yapılan işlemler buraya kendiliğinden yansır.</p><section class="page"><div class="head"><h3>Gelir - Gider Tablosu &amp; Kategoriler</h3>
+<div class="meta"><span><b>Menü:</b> Muhasebe, Defter &amp; Bütçe → Gelir - Gider &amp; Kategoriler</span><span><b>Adres:</b> <code>/sites/{id}/income-expense</code></span></div>
+<p class="purpose">Seçilen tarih aralığında toplam gelir, toplam gider ve net sonuç.</p>
+<figure><img src="img/gelir-gider.jpg"><figcaption>Gelir - Gider Tablosu &amp; Kategoriler ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Tarih aralığı veya hızlı seçim: Bu ay, Geçen ay, Bu yıl, Geçen yıl.</li><li>Kartlar: toplam gelir, toplam gider, net sonuç, gider / gelir oranı.</li><li>Gelir kaynakları ve gider kalemleri (kategoriye göre), önceki dönemle karşılaştırma, aylara göre dağılım.</li><li><b>Excel'e aktar</b> ve <b>Yazdır / PDF</b>.</li></ul>
+</section><section class="page"><div class="head"><h3>Daire Hesap Ekstresi</h3>
+<div class="meta"><span><b>Menü:</b> Muhasebe, Defter &amp; Bütçe → Daire Hesap Ekstreleri</span><span><b>Adres:</b> <code>/sites/{id}/statements</code></span></div>
+<p class="purpose">Tek dairenin banka ekstresi gibi tüm hareketleri.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Daire seç → <b>Göster</b>. Borçlar, ödemeler, avans hareketleri tarih sırasıyla ve yürüyen bakiyeyle.</li><li>Satırlardan makbuza; üstten tahsilat ekranına geçilir. Sakin de aynı ekstreyi portalda görür.</li></ul>
+</section><section class="page"><div class="head"><h3>Yevmiye Defteri</h3>
+<div class="meta"><span><b>Menü:</b> Muhasebe, Defter &amp; Bütçe → Yevmiye Defteri</span><span><b>Adres:</b> <code>/sites/{id}/ledger</code></span></div>
+<p class="purpose">Çift taraflı muhasebe kayıtlarının tamamı. Kayıtlar yalnızca eklenir, değiştirilemez.</p>
+<figure><img src="img/yevmiye.jpg"><figcaption>Yevmiye Defteri ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Filtre: hesap (Kasa/Banka, Üye/Daire Hesabı, Üye Avans Hesabı, Gelir, Gider, Açılış, Kur Farkı), işlem türü, arama, tarih aralığı.</li><li>Kartlar: kayıt sayısı, bu ay borç ve alacak, kullanılan hesap; <b>Denge</b> kutusu toplam borç = toplam alacak ise 'Dengede ✓' gösterir.</li><li><b>+ Elle yevmiye fişi:</b> tarih, açıklama ve satırlar (gelir / gider kategorisi, kur farkı, açılış hesapları; her satırda yalnızca borç veya yalnızca alacak). Fiş dengede değilse kaydedilmez.</li><li>Elle fişi iptal et (neden zorunlu). Excel / PDF çıktısı.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Kasa ve daire hesaplarına elle fiş kesilemez; onlar kendi ekranlarındaki işlemlerle oluşur.</li><li>Elle fiş mizan ve yevmiyede görünür; kasa bakiyesini değiştirmez.</li></ul></div>
+</section><section class="page"><div class="head"><h3>Kasa Defteri</h3>
+<div class="meta"><span><b>Menü:</b> Muhasebe, Defter &amp; Bütçe → Kasa Defteri</span><span><b>Adres:</b> <code>/sites/{id}/accounting/cash-book</code></span></div>
+<p class="purpose">Seçilen kasanın açılış bakiyesi, dönem içi giriş-çıkışları ve kapanış bakiyesi.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Kasa / banka ve tarih seç; her satırdan makbuza git; yazdır ve Excel.</li></ul>
+</section><section class="page"><div class="head"><h3>Mizan Tablosu</h3>
+<div class="meta"><span><b>Menü:</b> Muhasebe, Defter &amp; Bütçe → Mizan Tablosu</span><span><b>Adres:</b> <code>/sites/{id}/accounting/trial-balance</code></span></div>
+<p class="purpose">Hesap bazında borç ve alacak toplamları ile bakiyeler. Muhasebecinin 'defter dengede mi' kontrolü.</p>
+</div>
+<h4>Bağlantılı sayfalar</h4><p class="links">Yevmiye Defteri</p>
+</section><section class="page"><div class="head"><h3>Mali Durum Tablosu (Bilanço)</h3>
+<div class="meta"><span><b>Menü:</b> Muhasebe, Defter &amp; Bütçe → Mali Durum / Bilanço</span><span><b>Adres:</b> <code>/sites/{id}/accounting/balance-sheet</code></span></div>
+<p class="purpose">Seçilen günün sonu itibarıyla sitenin varlıkları, yükümlülükleri ve net varlığı.</p>
+<figure><img src="img/bilanco.jpg"><figcaption>Mali Durum Tablosu (Bilanço) ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Tarih itibarıyla ve karşılaştırma tarihi seç → <b>Göster</b>.</li><li><b>Varlıklar:</b> kasa ve banka, daire alacakları (gecikmiş kısmıyla), demirbaşların net değeri.</li><li><b>Yükümlülükler:</b> daire avansları (iade veya mahsup edilecek), ödenecek giderler (girilmiş ama ödenmemiş faturalar).</li><li>Net varlık, cari oran, gecikmiş alacak payı, nakit / varlık oranı.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Kasa, alacak ve avans yevmiyeden hesaplanır; bu yüzden geçmiş bir tarih için de doğrudur.</li></ul></div>
+</section><section class="page"><div class="head"><h3>Alacak Yaşlandırma</h3>
+<div class="meta"><span><b>Menü:</b> Muhasebe, Defter &amp; Bütçe → Alacak Yaşlandırma</span><span><b>Adres:</b> <code>/sites/{id}/accounting/aging</code></span></div>
+<p class="purpose">Kim, ne kadar süredir, ne kadar borçlu?</p>
+<figure><img src="img/yaslandirma.jpg"><figcaption>Alacak Yaşlandırma ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Filtre: blok, 'Yalnızca icradakiler', tarih.</li><li>Dilimler: vadesi gelmemiş, 1-30 gün, 31-60, 61-90, 90+ gün. Her daire için dilim tutarları ve toplam.</li><li>Satırdan <b>Ekstre</b> ve <b>Tahsil et</b> kısayolları.</li></ul>
+<div class="tip"><b>Patrona söyle:</b> "Hangi dairenin kaç gündür borçlu olduğunu tek tabloda görüyoruz; 90 günü geçenler icraya aday."</div>
+</section><section class="page"><div class="head"><h3>Bütçe &amp; Gerçekleşen</h3>
+<div class="meta"><span><b>Menü:</b> Muhasebe, Defter &amp; Bütçe → Bütçe &amp; Gerçekleşen</span><span><b>Adres:</b> <code>/sites/{id}/budget</code></span></div>
+<p class="purpose">Yıllık bütçe planı ve gerçekleşme karşılaştırması.</p>
+<figure><img src="img/butce.jpg"><figcaption>Bütçe &amp; Gerçekleşen ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Yıl seç; geçmiş yıllarla karşılaştırmak için yılları işaretle.</li><li>Kategori bazında planlanan tutarları gir → <b>Bütçeyi kaydet</b>. <b>Önceki yılı kopyala</b> ile hızlı başla.</li><li>Gelir / gider gerçekleşme oranları, planlanan ve gerçekleşen net, bütçeyi aşan kalemler, aylık gelir-gider, yıllara göre özet ve değerlendirme.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Boş bırakılan veya 0 girilen kategori bütçeden çıkarılır.</li><li>Gelirde gerçekleşen = borçlara yapılan tahsilat + avanstan mahsup edilen tutar.</li></ul></div>
+</section></div><div class="chapter"><h2><span>9</span>Gider, Tedarikçi &amp; İK</h2><p class="intro">Paranın çıktığı yerler.</p><section class="page"><div class="head"><h3>Gider &amp; Fatura Onayı</h3>
+<div class="meta"><span><b>Menü:</b> Gider, Tedarikçi &amp; İK → Gider &amp; Fatura Onayı</span><span><b>Adres:</b> <code>/sites/{id}/expenses</code></span></div>
+<p class="purpose">Apartmanın ödediği faturalar: asansör bakımı, elektrik, temizlik, tamirat, maaş.</p>
+<figure><img src="img/gider.jpg"><figcaption>Gider &amp; Fatura Onayı ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Özet:</b> onay bekleyen, bu ay ödenen, bu yıl ödenen, bu yıl KDV, aylık ortalama, fatura sayısı; kategoriye ve firmaya göre dağılım.</li><li>Filtre: firma, kategori, tarih, arama; sekmeler: Tümü, Ödeme bekleyen, Kısmi ödenen, Ödendi.</li></ul>
+<h4>Adım adım</h4><ol><li><b>+ Gider / fatura gir:</b> firma, kategori, açıklama, fatura no, tutar (KDV hariç), KDV oranı (%0, 1, 10, 20), fatura tarihi.</li><li>Hemen ödendiyse <b>Hemen öde</b> ile kasayı seç; değilse gider 'ödeme bekleyen' olarak kalır.</li><li>Fatura bir daireden alınacaksa (ör. o dairenin kırdığı cam) <b>daireye yansıt</b>: daire, daireden alınacak tutar, sorumlu, son ödeme tarihi. Daireye borç yazılır.</li><li>Bekleyen gideri ödemek için satırdaki <b>Öde</b>: kasa, tutar (boşsa kalanın tamamı; daha azı kısmi ödeme), döviz kasasında kur.</li></ol>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Ödenmiş veya kısmi ödenmiş gider düzenlenemez ve silinemez; önce ödeme iptal edilir.</li><li>Ödeme kasadan düşer; kasada para yoksa reddedilir.</li><li>Döviz kasasından ödemede, ortalama maliyet ile güncel kur arasındaki fark kur farkı olarak yazılır.</li><li>Daireye yansıtılmış gider silinirse, ödenmemiş yansıtma borcu da silinir.</li></ul></div>
+<h4>Bağlantılı sayfalar</h4><p class="links">Banka Ekstresi (giden satırı faturaya bağlama) · Tedarikçiler · Personel Bordrosu</p>
+</section><section class="page"><div class="head"><h3>Tedarikçi &amp; Cari Hesaplar</h3>
+<div class="meta"><span><b>Menü:</b> Gider, Tedarikçi &amp; İK → Tedarikçi &amp; Cari Hesaplar</span><span><b>Adres:</b> <code>/sites/{id}/vendors</code></span></div>
+<p class="purpose">Çalışılan firmalar.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Firma ekle / düzenle: ad, telefon, vergi dairesi, vergi no, e-posta, adres.</li><li>Her firmaya ödenen toplam görünür.</li><li>Sil = pasife alma; geçmiş giderlerdeki bağlantı korunur.</li></ul>
+</section><section class="page"><div class="head"><h3>Personel &amp; Görevliler</h3>
+<div class="meta"><span><b>Menü:</b> Gider, Tedarikçi &amp; İK → Personel &amp; Görevliler</span><span><b>Adres:</b> <code>/sites/{id}/staff</code></span></div>
+<p class="purpose">Kapıcı, güvenlik, temizlik görevlisi vb.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Ekle / düzenle / sil: ad soyad, görev, durum (Aktif / Pasif), telefon, e-posta, maaş, başlangıç tarihi.</li></ul>
+</section><section class="page"><div class="head"><h3>Personel Maaş &amp; Bordro</h3>
+<div class="meta"><span><b>Menü:</b> Gider, Tedarikçi &amp; İK → Personel Maaş &amp; Bordro</span><span><b>Adres:</b> <code>/sites/{id}/payroll</code></span></div>
+<p class="purpose">Aylık maaşları gider olarak üretir ve öder.</p>
+</div>
+<h4>Adım adım</h4><ol><li>Dönemi seç → <b>… bordrosunu oluştur</b>. Aktif ve maaşı girilmiş her personel için 'Personel' kategorisinde bir gider oluşur.</li><li>Her satırda <b>Öde</b> ile kasayı seçip maaşı öde.</li></ol>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Aynı personel ve dönem için ikinci kayıt yazılmaz.</li><li>Kapalı döneme bordro oluşturulamaz.</li></ul></div>
+</section></div><div class="chapter"><h2><span>10</span>Saha, Envanter &amp; Güvenlik</h2><p class="intro">Sitenin günlük işletmesi.</p><section class="page"><div class="head"><h3>Görev &amp; Bakım Takibi</h3>
+<div class="meta"><span><b>Menü:</b> Saha, Envanter &amp; Güvenlik → Görev &amp; Bakım Takibi</span><span><b>Adres:</b> <code>/sites/{id}/tasks</code></span></div>
+<p class="purpose">Yönetimin yapılacaklar listesi.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Görev oluştur: başlık, sorumlu, son tarih, öncelik, kategori, açıklama.</li><li>Durumunu güncelle (Bekliyor / Devam Ediyor / Tamamlandı), sil. Öncelik: Düşük / Orta / Yüksek; kategori: Bakım, Temizlik, Güvenlik, Diğer. Geciken görevler raporlarda görünür.</li></ul>
+</section><section class="page"><div class="head"><h3>Stok &amp; Sarf Malzeme</h3>
+<div class="meta"><span><b>Menü:</b> Saha, Envanter &amp; Güvenlik → Stok &amp; Sarf Malzeme</span><span><b>Adres:</b> <code>/sites/{id}/inventory</code></span></div>
+<p class="purpose">Temizlik malzemesi, ampul, yedek parça stoğu.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Kalem ekle: ad, kategori, miktar, birim, kritik seviye, konum.</li><li>Stok giriş / çıkış uygula; düzenle, sil.</li><li>Kritik seviyenin altına düşen kalemler panodaki uyarılarda görünür.</li></ul>
+</section><section class="page"><div class="head"><h3>Demirbaş &amp; Zimmet Kaydı</h3>
+<div class="meta"><span><b>Menü:</b> Saha, Envanter &amp; Güvenlik → Demirbaş &amp; Zimmet Kaydı</span><span><b>Adres:</b> <code>/sites/{id}/assets</code></span></div>
+<p class="purpose">Jeneratör, hidrofor, kamera sistemi gibi demirbaşlar.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Ekle: ad, kategori, satıcı firma, alış tarihi, maliyet, hurda değeri, faydalı ömür (yıl), seri no, konum.</li><li>Doğrusal amortismanla net değer otomatik hesaplanır; bilançoda varlık olarak görünür.</li><li><b>Elden çıkar</b> (satış / hurda), düzenle, sil.</li></ul>
+</section><section class="page"><div class="head"><h3>Ortak Alan Rezervasyonu</h3>
+<div class="meta"><span><b>Menü:</b> Saha, Envanter &amp; Güvenlik → Ortak Alan Rezervasyonu</span><span><b>Adres:</b> <code>/sites/{id}/reservations</code></span></div>
+<p class="purpose">Toplantı salonu, havuz, tenis kortu, mangal alanı gibi ortak alanların kullanımı.</p>
+<figure><img src="img/rezervasyon.jpg"><figcaption>Ortak Alan Rezervasyonu ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Ortak alanlar:</b> alan adı, açıklama, kapasite, saatlik ücret, açılış / kapanış saati.</li><li><b>Rezervasyon oluştur:</b> alan, daire, tarih, başlangıç-bitiş saati, not.</li><li>Sakinlerin portaldan yaptığı talepler 'Onay bekliyor' olarak gelir: <b>Onayla</b>, <b>Reddet</b>, <b>İptal</b>.</li><li>Filtre: alan, tarih; sekmeler: Tümü, Onay bekliyor, Onaylandı, Reddedildi, İptal.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Ücretli alanlarda ücret, onayla birlikte daireye borç olarak yazılır.</li><li>Aynı alanda çakışan saatlere ve alanın çalışma saatleri dışına rezervasyon yapılamaz.</li></ul></div>
+</section><section class="page"><div class="head"><h3>Güvenlik, Ziyaretçi &amp; Kargo</h3>
+<div class="meta"><span><b>Menü:</b> Saha, Envanter &amp; Güvenlik → Güvenlik, Ziyaretçi &amp; Kargo</span><span><b>Adres:</b> <code>/sites/{id}/security</code></span></div>
+<p class="purpose">Güvenlik kulübesinin kayıt defteri.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Kayıt türünü seç: Kargo (Beklemede / Teslim Edildi / İptal), Otopark (Otoparkta / Ayrıldı), Ziyaretçi (İçeride / Ayrıldı): daire, kişi / açıklama, kargo firması, takip no, plaka, not.</li><li>Durumu güncelle (ör. kargo teslim edildi), sil.</li></ul>
+</section><section class="page"><div class="head"><h3>Arıza &amp; Destek Talepleri</h3>
+<div class="meta"><span><b>Menü:</b> Saha, Envanter &amp; Güvenlik → Arıza &amp; Destek Talepleri</span><span><b>Adres:</b> <code>/sites/{id}/tickets</code></span></div>
+<p class="purpose">Sakinlerden gelen arıza ve şikâyetler. Mobilden ve portaldan açılan talepler de burada görünür.</p>
+<figure><img src="img/talepler.jpg"><figcaption>Arıza &amp; Destek Talepleri ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Özet:</b> açık talep, acil açık, bu ay açılan, çözülme oranı, ortalama çözüm süresi; kategoriye ve önceliğe göre dağılım.</li><li><b>+ Talep aç:</b> konu, daire (boşsa ortak alan), kategori, öncelik, açıklama.</li><li>Talep satırında yazışma: sakine yanıt yaz ve fotoğraf ekle; durum (Açık / İşlemde / Çözüldü / Kapandı) ve yanıtı güncelle; talebi sil.</li><li>Sekmeler: Tümü, Açık, İşlemde, Çözüldü, Kapandı.</li></ul>
+<div class="tip"><b>Patrona söyle:</b> "Sakin arızayı telefondan fotoğrafla bildiriyor, biz buradan yanıtlıyoruz; çözüm sürelerimizi de ölçüyoruz."</div>
+</section></div><div class="chapter"><h2><span>11</span>Kurul, İletişim &amp; Arşiv</h2><p class="intro">Sakinlerle iletişim ve yönetimin resmi kayıtları.</p><section class="page"><div class="head"><h3>Genel Kurul &amp; Toplantılar</h3>
+<div class="meta"><span><b>Menü:</b> Kurul, İletişim &amp; Arşiv → Genel Kurul &amp; Toplantılar</span><span><b>Adres:</b> <code>/sites/{id}/meetings</code></span></div>
+<p class="purpose">Olağan / olağanüstü genel kurul ve yönetim kurulu toplantıları.</p>
+<figure><img src="img/toplanti.jpg"><figcaption>Genel Kurul &amp; Toplantılar ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>+ Toplantı planla:</b> başlık, tür, tarih ve saat, yer, gündem.</li><li>Liste: tarih, toplantı, tür, yer, katılan daire, durum (Planlandı / Yapıldı); <b>Aç</b> ile detay.</li><li><b>Toplantı detayı:</b> bilgileri ve tutanağı düzenle; <b>Hazirun (katılım) cetveli</b> (hangi daire katıldı işaretle → Hazirunu kaydet → Hazirun cetveli yazdır); <b>Alınan kararlar</b> (karar no, konu, metin → Karar ekle); toplantıyı sil.</li></ul>
+<h4>Bağlantılı sayfalar</h4><p class="links">Karar Defteri · Rapor Merkezi → Hazirun Cetveli, Toplantı Katılımı</p>
+</section><section class="page"><div class="head"><h3>Karar Defteri</h3>
+<div class="meta"><span><b>Menü:</b> Kurul, İletişim &amp; Arşiv → Karar Defteri</span><span><b>Adres:</b> <code>/sites/{id}/decisions</code></span></div>
+<p class="purpose">Yönetim kararlarının resmi kaydı.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Karar ekle: karar no, tarih, konu, karar metni, katılımcılar.</li><li>Düzenle, sil, <b>Yazdır / PDF</b>.</li><li>Toplantıdan eklenen kararlar da burada listelenir.</li></ul>
+</section><section class="page"><div class="head"><h3>Duyuru Panosu</h3>
+<div class="meta"><span><b>Menü:</b> Kurul, İletişim &amp; Arşiv → Duyuru Panosu</span><span><b>Adres:</b> <code>/sites/{id}/announcements</code></span></div>
+<p class="purpose">Sakinlere yönelik duyurular. Aktif duyurular portalda ve mobil uygulamada görünür.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Yeni duyuru: başlık, öncelik, yayın bitiş tarihi, içerik → <b>Yayınla</b>.</li><li>Düzenle, yayından kaldır / yayınla, sil. Bitiş tarihi geçen duyuru otomatik gizlenir.</li></ul>
+</section><section class="page"><div class="head"><h3>Sakin Anketleri &amp; Oylama</h3>
+<div class="meta"><span><b>Menü:</b> Kurul, İletişim &amp; Arşiv → Sakin Anketleri &amp; Oylama</span><span><b>Adres:</b> <code>/sites/{id}/polls</code></span></div>
+<p class="purpose">Sakinlere soru sorup oylama yaptırma.</p>
+<figure><img src="img/anket.jpg"><figcaption>Sakin Anketleri &amp; Oylama ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Yeni anket: soru, bitiş tarihi, seçenekler (her satıra bir tane, 2-10 adet) → <b>Anketi başlat</b>.</li><li>Her anket kartında katılım (kaç daire oy kullandı) ve sonuçlar; aç / kapat, sil.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Her daire bir oy kullanır.</li><li>Oy kullanıldıktan sonra yalnızca bitiş tarihi değiştirilebilir.</li></ul></div>
+</section><section class="page"><div class="head"><h3>Toplu Bildirim Gönderimi</h3>
+<div class="meta"><span><b>Menü:</b> Kurul, İletişim &amp; Arşiv → Toplu Bildirim Gönderimi</span><span><b>Adres:</b> <code>/sites/{id}/notifications</code></span></div>
+<p class="purpose">Seçilen dairelere uygulama içi bildirim gönderir.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Başlık, hedef (tüm site / blok / seçili daireler), mesaj → <b>Gönder</b>.</li><li>Gönderilenler listesi.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Bildirimler portal ve mobil uygulamanın bildirim kutusunda görünür. Telefona anlık (push) bildirim için ayrıca bir servis entegrasyonu gerekir (henüz yok).</li></ul></div>
+</section><section class="page"><div class="head"><h3>Otomatik Borç Hatırlatıcı</h3>
+<div class="meta"><span><b>Menü:</b> Kurul, İletişim &amp; Arşiv → Otomatik Borç Hatırlatıcı</span><span><b>Adres:</b> <code>/sites/{id}/reminders</code></span></div>
+<p class="purpose">Vadesi geçmiş borcu olan dairelere hatırlatma.</p>
+<figure><img src="img/hatirlatma.jpg"><figcaption>Otomatik Borç Hatırlatıcı ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Özet: gecikmiş daire, gecikmiş toplam, daire başı ortalama, e-postayla ulaşılabilir daire, bu ay hatırlatma.</li><li>Liste: daire, sakin, telefon, borç sayısı, en eski vade, gecikmiş tutar; satırdan <b>Tahsil et</b>.</li><li>Daireleri işaretle → isteğe bağlı 'E-posta da gönder' → <b>Seçilenlere hatırlatma gönder</b>.</li><li><b>Otomatik hatırlatma:</b> 'Gecikmiş dairelere otomatik hatırlat', 'E-posta da gönder', kaç günde bir → Kaydet. Her sabah 09:00'da kontrol edilir.</li></ul>
+</section><section class="page"><div class="head"><h3>Dijital Belge Arşivi</h3>
+<div class="meta"><span><b>Menü:</b> Kurul, İletişim &amp; Arşiv → Dijital Belge Arşivi</span><span><b>Adres:</b> <code>/sites/{id}/documents</code></span></div>
+<p class="purpose">Sözleşme, fatura, tutanak, yönetim planı, sigorta poliçesi ve teknik belgeler.</p>
+<figure><img src="img/belge.jpg"><figcaption>Dijital Belge Arşivi ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Belge yükle: başlık, kategori (Sözleşme, Fatura, Karar / Tutanak, Yönetim Planı, Sigorta, Teknik, Diğer), bitiş / geçerlilik tarihi, dosya (PDF, görsel, Word / Excel, CSV, ZIP; en çok 10 MB).</li><li>Süresi dolan ve 30 gün içinde dolacak belgeler sarı uyarı bandında gösterilir (ör. DASK poliçesi).</li><li>Kategoriye göre filtrele, ara; tarayıcıda görüntüle, indir, sil.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Dosyalar herkese açık bir klasörde değil, korumalı alanda saklanır; yalnızca yetkili kullanıcı indirebilir.</li></ul></div>
+</section></div><div class="chapter"><h2><span>12</span>Rapor, Denetim &amp; Ayarlar</h2><p class="intro">Çıktılar, denetim izi ve sitenin ayarları.</p><section class="page"><div class="head"><h3>Rapor Merkezi</h3>
+<div class="meta"><span><b>Menü:</b> Rapor, Denetim &amp; Ayarlar → Rapor Merkezi (PDF / CSV)</span><span><b>Adres:</b> <code>/sites/{id}/reports</code></span></div>
+<p class="purpose">Hazır raporlar. Her rapor yazdırılabilir (PDF olarak kaydedilebilir) ve Excel'e aktarılabilir.</p>
+<figure><img src="img/raporlar.jpg"><figcaption>Rapor Merkezi ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Rapor kartında <b>Görüntüle</b> → filtrele (blok, başlangıç, bitiş) → <b>Uygula</b> → <b>Yazdır / PDF</b> veya Excel.</li></ul>
+</section><table><thead><tr><th>Grup</th><th>Raporlar</th></tr></thead><tbody><tr><td>Listeler</td><td>Sakin Listesi · Hazirun Cetveli (imzalı katılım listesi) · Bakiye Durum Listesi</td></tr><tr><td>Tahsilat ve Borç</td><td>Detaylı Borç Raporu · Vadesi Geçmiş Borçlar · Tahsilat Makbuzları · En Borçlu Daireler · Avans Listesi · Gecikme Zammı Raporu · İcra Takibindeki Borçlar</td></tr><tr><td>Finans Analizi</td><td>Aylık Tahsilat Performansı · Aylık Nakit Akışı · Kategori Bazında Gider · Firma Bazında Harcama · Blok Karşılaştırması</td></tr><tr><td>Operasyon</td><td>Destek Talepleri · Görev Raporu · Rezervasyon Raporu · Güvenlik Kayıtları · Stok Durumu · Demirbaş Listesi · Sayaç Tüketimi · Personel ve Bordro</td></tr><tr><td>İletişim ve Yönetim</td><td>Anket Sonuçları · Toplantı Katılımı</td></tr></tbody></table><section class="page"><div class="head"><h3>İşlem &amp; Denetim Kayıtları</h3>
+<div class="meta"><span><b>Menü:</b> Rapor, Denetim &amp; Ayarlar → İşlem &amp; Denetim Kayıtları</span><span><b>Adres:</b> <code>/sites/{id}/audit</code></span></div>
+<p class="purpose">Kim, ne zaman, ne yaptı? Finansal ve yönetimsel her işlemin silinemez izi.</p>
+<figure><img src="img/denetim.jpg"><figcaption>İşlem &amp; Denetim Kayıtları ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Özet: toplam kayıt, son 24 saat, son 30 gün, işlem yapan kullanıcı; modüle göre ve en sık işlemler.</li><li>Filtre: modül, kullanıcı, tarih, arama. Her satırda tarih, kullanıcı, işlem (ör. COLLECTION, REVERSE_TRANSACTION, APPROVE_EXPENSE), modül, referans ve detay (tutar, neden, değişen alanların eski / yeni değeri).</li></ul>
+<div class="tip"><b>Patrona söyle:</b> "Her tahsilat, iptal, silme ve ayar değişikliği kimin yaptığıyla kayıtlı; bu kayıt silinemiyor."</div>
+</section><section class="page"><div class="head"><h3>Site Ayarları &amp; Yöneticiler</h3>
+<div class="meta"><span><b>Menü:</b> Rapor, Denetim &amp; Ayarlar → Site Ayarları &amp; Yöneticiler</span><span><b>Adres:</b> <code>/sites/{id}/settings</code></span></div>
+<p class="purpose">Sitenin kimlik bilgileri, dönem / yıl kapatma, yöneticiler ve rol izinleri.</p>
+<figure><img src="img/ayarlar.jpg"><figcaption>Site Ayarları &amp; Yöneticiler ekranı (demo veri)</figcaption></figure>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Site bilgileri:</b> ad, kod, şehir, vergi no, adres; 'Kasa bakiyesi eksiye düşebilsin' seçeneği.</li><li><b>Dönem kapatma</b> (yalnızca site sahibi): kapanış tarihi seç → o tarih dahil öncesine borç eklenemez, kayıt silinemez / iptal edilemez. Geri açmak için gerekçe zorunlu ve denetim kaydına yazılır.</li><li><b>Yıl sonu kapanışı</b> (yalnızca site sahibi): tamamlanmış yılı seç → <b>Yılı kapat</b>. Yılın gelir-gider sonucu ve 31 Aralık bakiyeleri kaydedilir, dönem 31 Aralık'a kadar kapanır. Defter bakiyelerle tutmuyorsa kapanış yapılmaz. Kapatılan yıllar kartta listelenir.</li><li><b>Yöneticiler:</b> siteye kullanıcı ekle, rolünü seç (Yönetici / Muhasebeci / İzleyici), çıkar.</li><li><b>Rol izinleri:</b> muhasebeci ve izleyici için her modülde Erişim yok / Görüntüleme / Görüntüleme + işlem → İzinleri kaydet.</li><li><b>Tehlikeli işlemler:</b> Siteyi sıfırla (tüm hareketleri siler, yapı kalır) ve Siteyi sil. Onay için site kodu yazılır.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Dönem en geç dünden önceki bir tarihe kadar kapatılabilir.</li><li>Kapalı dönem olsa bile bugünkü tahsilatlar eski borçlara yazılmaya devam eder.</li></ul></div>
+</section><section class="page"><div class="head"><h3>Site içi arama</h3>
+<div class="meta"><span><b>Menü:</b> Üst çubuk → büyüteç</span><span><b>Adres:</b> <code>/sites/{id}/search</code></span></div>
+<p class="purpose">Sitede hızlı arama.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Daire, sakin, borç, destek talebi ve gider sonuçları ayrı başlıklar altında; her sonuç ilgili sayfaya götürür.</li></ul>
+</section></div><div class="chapter"><h2><span>13</span>Sistem yönetimi (süper admin)</h2><p class="intro">Yalnızca süper adminin gördüğü bölümler ve sunucu komutları.</p><section class="page"><div class="head"><h3>Sistem Kayıtları</h3>
+<div class="meta"><span><b>Menü:</b> Süper admin menüsü</span><span><b>Adres:</b> <code>/system/audit</code></span></div>
+<p class="purpose">Bütün sitelerin ve sistemin denetim kaydı (giriş, kullanıcı ve rol değişikliği, yedek geri yükleme dahil).</p>
+</div>
+</section><section class="page"><div class="head"><h3>Yedekler</h3>
+<div class="meta"><span><b>Menü:</b> Süper admin menüsü</span><span><b>Adres:</b> <code>/system/backups</code></span></div>
+<p class="purpose">Veritabanı yedekleri.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li><b>Şimdi yedek al</b>.</li><li><b>Yedeği geri yükle:</b> yedeği seç, şifreni ve onay ifadesini yaz. Geri yüklemeden önce mevcut durumun güvenlik yedeği otomatik alınır.</li></ul>
+<h4>Kurallar ve dikkat edilecekler</h4><div class="rules"><ul><li>Her gece 03:00'te otomatik yedek alınır, eski yedekler temizlenir.</li><li>Yedekler şu an aynı sunucuda durur; dış depoya kopyalanmaz (yol haritasında).</li></ul></div>
+</section><section class="page"><div class="head"><h3>Kurulum sihirbazı</h3>
+<div class="meta"><span><b>Menü:</b> İlk açılış / Setup</span><span><b>Adres:</b> <code>/setup</code></span></div>
+<p class="purpose">Sistemi ilk kez kuran ekran.</p>
+</div>
+<h4>Bu sayfada ne yapılır?</h4><ul><li>Kurulum türü (temiz / demo), kurulum kodu, veritabanı bilgileri, ilk yöneticinin adı-e-postası-şifresi, ilk site adı, kodu ve blokları. Her adımda 'Bu adımı anlat' açıklaması vardır.</li></ul>
+</section>
+<h4>Sunucu komutları (teknik ekip için)</h4>
+<table><thead><tr><th>Komut</th><th>Ne yapar</th></tr></thead><tbody><tr><td><code>php artisan app:setup</code></td><td>Sıfırdan kurulum (ortam, veritabanı, ilk yönetici, ilk site). Tekrar çalıştırmak güvenlidir.</td></tr><tr><td><code>php artisan app:make-admin e-posta --create --super</code></td><td>Yönetici veya süper admin oluşturur / atar.</td></tr><tr><td><code>php artisan app:run-billing</code></td><td>Otomatik aidat ve gecikme zammı (her gece 02:00).</td></tr><tr><td><code>php artisan app:backup</code> / <code>app:restore</code></td><td>Yedek al / yedekten geri yükle.</td></tr><tr><td><code>php artisan app:reconcile</code></td><td>Yevmiye defterini kasa, daire borcu ve avans bakiyeleriyle karşılaştırır; sapma varsa raporlar (her gece 04:00).</td></tr><tr><td><code>php artisan app:send-reminders</code></td><td>Otomatik borç hatırlatmaları (her gün 09:00).</td></tr><tr><td><code>php artisan app:check-production</code></td><td>Canlıya çıkış kontrolü: hata ekranı, HTTPS, e-posta, kuyruk, yedek, iki adımlı doğrulama vb.</td></tr><tr><td><code>php artisan app:disable-two-factor e-posta</code></td><td>Telefonunu kaybeden kullanıcının iki adımlı doğrulamasını kapatır.</td></tr></tbody></table></div><div class="chapter"><h2><span>14</span>Sakin portalı ve mobil uygulama</h2><p class="intro">Sakinlerin kullandığı bölüm. Web portalı hazırdır; mobil uygulama için aynı işlevleri sunan API hazırdır.</p>
+<h4>Sakin nasıl katılır?</h4>
+<ol><li>Yönetici sakini <b>Sakin &amp; Üye Listesi</b>'ne ekler; sistem davet kodu üretir (ör. YVADI-A1-SJYAQ2F3).</li><li>Kod sakine iletilir (SMS, WhatsApp veya kâğıtla).</li><li>Sakin giriş ekranında <b>Hesap aç</b> (/portal/join) ile hesabını açar veya mevcut hesabıyla girip <b>Davet koduyla daire ekle</b> alanına kodu yazar.</li><li>Bir hesap birden fazla daireye / siteye bağlanabilir.</li></ol><table><thead><tr><th>Portal sayfası</th><th>Adres</th><th>Sakin ne yapar?</th></tr></thead><tbody><tr><td>Sitelerim</td><td>/portal</td><td>Bağlı olduğu siteleri görür, davet koduyla yeni daire ekler.</td></tr><tr><td>Genel bakış</td><td>/portal/{site}</td><td>Yaklaşan ve geciken borçlar, duyurular, son bildirimler.</td></tr><tr><td>Borçlar</td><td>/portal/{site}/debts</td><td>Dairesinin borçları ve hesap ekstresi (birden fazla dairesi varsa daire seçer).</td></tr><tr><td>Bildirimler</td><td>/portal/{site}/notifications</td><td>Bildirimler (okundu işaretle) ve duyurular.</td></tr><tr><td>Anketler</td><td>/portal/{site}/polls</td><td>Daire adına oy verir (daire başı tek oy).</td></tr><tr><td>Talepler</td><td>/portal/{site}/tickets</td><td>Arıza / şikâyet açar (konu, kategori, öncelik, açıklama, fotoğraf), yönetimle yazışır.</td></tr><tr><td>Rezervasyonlar</td><td>/portal/{site}/reservations</td><td>Ortak alan rezervasyonu ister ve iptal eder; yönetim onaylar.</td></tr><tr><td>Toplantılar</td><td>/portal/{site}/meetings</td><td>Toplantıları ve alınan kararları görür.</td></tr><tr><td>Hesabım</td><td>/portal/account</td><td>Şifresini değiştirir.</td></tr></tbody></table>
+<div class="tip"><b>Güvenlik:</b> Sakin yalnızca kendi dairesini görür. Daireden ayrılan veya bağlantısı kaldırılan sakinin erişimi anında biter. Sakin, başka bir sitenin adresini yazsa bile 403 hatası alır.</div>
+<div class="tip"><b>Henüz yok:</b> Sakinin portaldan online ödeme yapması veya dekont yüklemesi bilinçli olarak ertelendi.</div>
+</div><div class="chapter"><h2><span>15</span>Otomatik (gece) işleri</h2><p class="intro">Sistem kimse dokunmadan şunları yapar. Sunucuda her dakika çalışan tek bir zamanlayıcı (cron) satırı gerekir.</p><table><thead><tr><th>Saat</th><th>İş</th><th>Açıklama</th></tr></thead><tbody><tr><td>02:00</td><td>Aidat ve gecikme zammı</td><td>Otomatik seçeneği açık sitelerde o ayın aidatlarını ve vadesi geçen borçların zamlarını yazar.</td></tr><tr><td>03:00</td><td>Yedek</td><td>Veritabanını sıkıştırılmış olarak yedekler, eskileri temizler.</td></tr><tr><td>04:00</td><td>Uzlaştırma</td><td>Yevmiye defterini kasa, daire borcu ve avans bakiyeleriyle karşılaştırır. Tutmazsa hata verir.</td></tr><tr><td>09:00</td><td>Borç hatırlatma</td><td>Otomatik hatırlatması açık sitelerde gecikmiş dairelere hatırlatma (ve istenirse e-posta) gönderir.</td></tr><tr><td>Her dakika</td><td>E-posta kuyruğu</td><td>Bekleyen e-postaları gönderir.</td></tr></tbody></table><ul><li><b>Tekrar çalışsa zarar vermez:</b> aynı ayın aidatı ikinci kez yazılmaz.</li><li><b>Bir site hata verirse diğerleri durmaz;</b> hatalı site ertesi gece yeniden denenir.</li><li>Her site otomatik aidat, zam ve hatırlatmayı kendi ayar sayfasından açar / kapatır.</li></ul></div><div class="chapter"><h2><span>16</span>Günlük, aylık ve yıllık iş akışları</h2><p class="intro">Hangi iş hangi sırayla, hangi sayfadan yapılır?</p>
+<h4>A. Yeni bir site kurmak</h4>
+<ol><li><b>Konut &amp; Siteler</b> → + Yeni site oluştur (Merkez Kasa ve kategoriler otomatik gelir).</li><li><b>Blok, Daire &amp; Gruplar</b> → blokları ve daireleri ekle (Toplu ekle ile hızlıca), m² ve arsa payını gir.</li><li><b>Sakin &amp; Üye Listesi</b> → sakinleri ekle, davet kodlarını dağıt.</li><li><b>Kasa &amp; Banka Hesapları</b> → banka hesaplarını aç, açılış bakiyelerini gir.</li><li><b>Aidat &amp; Otomatik Tahakkuk</b> → aidat tanımını yap, otomatik üretimi aç.</li><li><b>Gecikme Zammı</b> ve <b>Borç Hatırlatıcı</b> ayarlarını yap.</li><li><b>Site Ayarları</b> → yöneticileri ekle, muhasebeci izinlerini ayarla.</li></ol>
+<h4>B. Her gün</h4>
+<ol><li><b>Site Finans Panosu</b>'na bak: uyarılar, bugün vadesi gelenler.</li><li>Elden veya havaleyle gelen ödemeleri <b>Tahsilat</b>'tan gir.</li><li>Bankadan ekstreyi indir, <b>Banka Ekstresi Eşleştirme</b>'ye yükle, eşleşenleri toplu işle.</li><li>Gelen faturaları <b>Gider &amp; Fatura Onayı</b>'na gir, ödenecekleri öde.</li><li><b>Arıza &amp; Destek Talepleri</b> ve <b>Rezervasyon</b> onaylarını yanıtla.</li></ol>
+<h4>C. Her ay</h4>
+<ol><li>Aidatlar gece otomatik yazılır (kapalıysa <b>Aidat</b> sayfasından dönemi çalıştır).</li><li>Sayaç okumalarını gir, <b>Sayaç Faturası Dağıtımı</b> ile ortak faturayı paylaştır.</li><li><b>Personel Bordrosu</b> → bordroyu oluştur ve öde.</li><li><b>Alacak Yaşlandırma</b> → geciken dairelere <b>Borç Hatırlatıcı</b>'dan hatırlatma gönder.</li><li><b>Gelir - Gider Tablosu</b> ve <b>Bütçe</b> ile ayı değerlendir.</li><li>Ay sonu kontrolü bittiğinde <b>Site Ayarları → Dönem kapatma</b> ile ayı kilitle.</li></ol>
+<h4>D. Yıl sonu ve genel kurul</h4>
+<ol><li><b>Bütçe &amp; Gerçekleşen</b> ve <b>Mali Durum Tablosu</b> ile yılı raporla.</li><li><b>Site Ayarları → Yıl sonu kapanışı</b> ile yılı kapat.</li><li><b>Genel Kurul &amp; Toplantılar</b>'da toplantıyı planla, <b>Duyuru</b> ile sakinlere bildir.</li><li>Toplantı günü hazirun cetvelini doldur ve yazdır, kararları ekle; kararlar <b>Karar Defteri</b>'ne düşer.</li><li>Yeni yılın bütçesini <b>Önceki yılı kopyala</b> ile hazırla.</li></ol>
+<h4>E. Sık karşılaşılan durumlar</h4>
+<table><thead><tr><th>Durum</th><th>Ne yapılır, nereden?</th></tr></thead><tbody><tr><td>Yanlış daireye tahsilat girildi</td><td>Tahsilat listesinde hareketi <b>iptal et</b> (neden yaz), doğru daireye yeniden gir.</td></tr><tr><td>Yanlış tutarlı borç yazıldı</td><td>Ödeme alınmadıysa <b>Borçlandırma</b>'da düzenle; alındıysa önce tahsilatı iptal et.</td></tr><tr><td>Sakin borcunu taksitle ödemek istiyor</td><td><b>Borçlandırma</b>'da borcu <b>Taksitlendir</b>.</td></tr><tr><td>Sakin uzun süredir ödemiyor</td><td><b>Borçlandırma</b>'da borca <b>İcra</b> işareti koy; <b>Rapor Merkezi → İcra Takibindeki Borçlar</b>.</td></tr><tr><td>Sakin fazla ödedi, parasını istiyor</td><td><b>Avans &amp; Kredi Mahsup</b> → <b>İade et</b>.</td></tr><tr><td>Daire satıldı</td><td>Eski sakini <b>Geçmişe taşı</b>, yeni sakini ekle. Borçlar dairede kalır.</td></tr><tr><td>Fatura bir dairenin kusurundan doğdu</td><td>Gideri girerken <b>daireye yansıt</b>.</td></tr><tr><td>Bankadan dövizi TL'ye çevirdik</td><td><b>Kasa &amp; Banka → Virman</b>; hedefe giren TL tutarını yaz, kur farkı otomatik.</td></tr></tbody></table></div><div class="chapter"><h2><span>17</span>Güvenlik ve veri bütünlüğü</h2><p class="intro">Sistemin "neden güvenilir" olduğunu anlatan maddeler.</p><table><thead><tr><th>Konu</th><th>Nasıl sağlanıyor?</th></tr></thead><tbody><tr><td>Para hassasiyeti</td><td>Tutarlar kuruş (tam sayı) olarak hesaplanır; bölüştürmelerde artan kuruş kaybolmaz.</td></tr><tr><td>Yarım kayıt olmaz</td><td>Her işlem tek bir veritabanı işlemidir: ya tamamı olur ya hiçbiri.</td></tr><tr><td>Aynı anda iki işlem</td><td>İşlem sırasında ilgili daire, kasa ve borç kilitlenir; iki kişi aynı anda tahsilat girse bakiye bozulmaz.</td></tr><tr><td>Çift taraflı kayıt</td><td>Her hareket borç = alacak iki satır yazar; yevmiye her an dengededir.</td></tr><tr><td>Silme yok, ters kayıt var</td><td>Muhasebe kayıtları değiştirilmez; düzeltme zıt kayıtla yapılır.</td></tr><tr><td>Mükerrer koruması</td><td>Aidat, gecikme zammı, sayaç payı, banka satırı aynı anahtarla ikinci kez yazılmaz.</td></tr><tr><td>Gece uzlaştırma</td><td>Defter ile kasa / borç / avans bakiyeleri her gece karşılaştırılır.</td></tr><tr><td>Dönem kilidi</td><td>Kapatılan döneme kayıt girilemez, oradaki kayıt iptal edilemez; geri açma gerekçeli ve kayıtlı.</td></tr><tr><td>Denetim izi</td><td>Her işlem kullanıcı, zaman ve detayla kayıtlı; değişikliklerde eski / yeni değer tutulur.</td></tr><tr><td>Erişim</td><td>Rol ve modül izinleri sunucuda zorlanır; her site yalnızca kendi verisini görür.</td></tr><tr><td>Giriş güvenliği</td><td>Şifre sıfırlama, iki adımlı doğrulama, hatalı giriş sınırı, davet kodu deneme sınırı.</td></tr><tr><td>Belgeler</td><td>Yüklenen dosyalar korumalı alanda; yalnızca yetkili indirir.</td></tr><tr><td>Yedek</td><td>Her gece otomatik yedek; geri yüklemeden önce güvenlik yedeği.</td></tr><tr><td>Test</td><td>Sistemin davranışları 580'den fazla otomatik testle doğrulanıyor.</td></tr></tbody></table></div><div class="chapter"><h2><span>18</span>Patron sunumu: senaryo ve olası sorular</h2><p class="intro">15 dakikalık canlı demo akışı ve hazır cevaplar.</p>
+<h4>Sunum akışı (15 dakika)</h4>
+<table><thead><tr><th>Dakika</th><th>Ekran</th><th>Ne göster, ne söyle</th></tr></thead><tbody><tr><td>0-2</td><td>Genel Portföy Panosu</td><td>"Beş sitenin tahsilatı, borcu, kasası ve bekleyen işleri tek ekranda." Uyarılar kutusunu göster.</td></tr><tr><td>2-4</td><td>Siteler → bir site → Site Finans Panosu</td><td>Tahsilat hunisi, kasa, borçlu daireler.</td></tr><tr><td>4-6</td><td>Aidat &amp; Otomatik Tahakkuk</td><td>"Tanımı bir kez yapıyoruz, her gece kendiliğinden yazılıyor, mükerrer olmuyor."</td></tr><tr><td>6-8</td><td>Tahsilat</td><td>Daire seç, 1.500 TL gir: borç kapanır, 500 avans olur, makbuz çıkar.</td></tr><tr><td>8-9</td><td>Banka Ekstresi</td><td>"Ekstreyi yüklüyoruz, daireler otomatik eşleşiyor."</td></tr><tr><td>9-10</td><td>Gider &amp; Fatura Onayı</td><td>Fatura gir, kasadan öde.</td></tr><tr><td>10-12</td><td>Alacak Yaşlandırma → Borç Hatırlatıcı</td><td>"Kim kaç gündür borçlu; tek tuşla hatırlatma."</td></tr><tr><td>12-13</td><td>Mali Durum Tablosu / Yevmiye</td><td>"Defter dengede; bilanço her tarih için doğru."</td></tr><tr><td>13-14</td><td>Arıza Talepleri ve Sakin portalı</td><td>"Sakin telefondan arıza bildiriyor, borcunu görüyor, oy veriyor."</td></tr><tr><td>14-15</td><td>Denetim Kayıtları + Site Ayarları</td><td>"Her işlem kimin yaptığıyla kayıtlı; dönem kapatılınca kimse eski kaydı değiştiremez."</td></tr></tbody></table>
+<h4>Olası sorular ve cevaplar</h4>
+<table><thead><tr><th>Soru</th><th>Cevap</th></tr></thead><tbody><tr><td>Muhasebeci para çıkarabilir mi, kontrol var mı?</td><td>Varsayılan olarak finans modüllerinde işlem yapabilir; yönetici Site Ayarları → Rol izinleri'nden modül modül kısıtlar. Kasa eksiye düşmez, her işlem denetim kaydında. İki kişi onayı şu an yok.</td></tr><tr><td>Yanlış girilen kaydı biri silip izini kaybettirebilir mi?</td><td>Hayır. Muhasebe kaydı silinmez, ters kayıtla düzeltilir; işlem denetim kaydına yazılır. Kapalı dönemde iptal de yapılamaz.</td></tr><tr><td>Aynı aidat iki kez yazılabilir mi?</td><td>Hayır, her borcun dönem + tanım + daire anahtarı var; ikinci çalıştırma atlanır.</td></tr><tr><td>Sakin taşınınca borç ne olur?</td><td>Borç dairede kalır; eski sakin geçmişe taşınır, yeni sakin dairenin hesabını devralır.</td></tr><tr><td>Banka ile kasa tutuyor mu nasıl anlarız?</td><td>Banka ekstresi sayfası, ekstrede karşılığı olmayan kasa hareketlerini listeler; gece uzlaştırma defterle bakiyeleri karşılaştırır.</td></tr><tr><td>Döviz tutabiliyor muyuz?</td><td>Evet; USD / EUR kasası açılır, tahsilat ve ödeme kurla yapılır, kur farkı otomatik hesaplanır.</td></tr><tr><td>Raporları dışarı verebiliyor muyuz?</td><td>25 hazır rapor ve tüm mali tablolar yazdırılır / PDF olarak kaydedilir ve Excel'e aktarılır.</td></tr><tr><td>Veriler kaybolursa?</td><td>Her gece otomatik yedek alınır, tek tıkla geri yüklenir. Yedeğin buluta kopyalanması yol haritasında.</td></tr><tr><td>Sakin online ödeyebilir mi?</td><td>Şu an hayır, bilinçli olarak ertelendi. Tahsilat yönetim panelinden veya banka ekstresinden giriliyor.</td></tr><tr><td>SMS gönderiyor mu?</td><td>Şu an e-posta ve uygulama içi bildirim var; SMS / WhatsApp sağlayıcı entegrasyonu yol haritasında.</td></tr></tbody></table>
+<div class="tip"><b>Altın kural:</b> Bilmediğin bir soruda "o kısmı kontrol edip size dönerim" de. Eksikleri saklama; "yol haritasında" diye sun.</div>
+</div><div class="chapter"><h2><span>19</span>Bilinen eksikler ve yol haritası</h2><p class="intro">Dürüst olunması gereken konular. Patron sorarsa "planlı" diye sunulur.</p><table><thead><tr><th>Konu</th><th>Durum</th></tr></thead><tbody><tr><td>Sakin online ödeme / dekont yükleme</td><td>Bilinçli olarak ertelendi.</td></tr><tr><td>SMS / WhatsApp</td><td>Yok; e-posta ve uygulama içi bildirim var.</td></tr><tr><td>Mobil push bildirim</td><td>Bildirimler uygulama içinde; telefona anlık bildirim için servis entegrasyonu gerekli.</td></tr><tr><td>e-Fatura / e-Arşiv / e-Defter</td><td>Yok.</td></tr><tr><td>Banka API entegrasyonu</td><td>Yok; banka ekstresi CSV ile yükleniyor.</td></tr><tr><td>Yedeğin dış depoya kopyalanması</td><td>Yok; yedekler aynı sunucuda.</td></tr><tr><td>İki kişi onayı (yüksek tutarlı gider)</td><td>Yok.</td></tr><tr><td>Toplu aidat artışı, boş daire muafiyeti, ay ortası taşınmada orantılama</td><td>Yok.</td></tr><tr><td>Daire / sakin Excel'den toplu içe aktarma</td><td>Yok; daireler 'Toplu ekle' ile numara aralığından eklenebilir.</td></tr><tr><td>Gerçek PDF üretimi</td><td>Tarayıcının yazdır → PDF olarak kaydet özelliği kullanılıyor.</td></tr><tr><td>Periyodik kontrol takvimi (asansör, yangın tüpü) hatırlatması</td><td>Belge arşivinde bitiş tarihi uyarısı var; tekrarlayan takvim yok.</td></tr><tr><td>KVKK modülü (aydınlatma, rıza, veri silme talebi)</td><td>Yok.</td></tr><tr><td>Çok dilli arayüz</td><td>Yalnızca Türkçe.</td></tr></tbody></table></div><div class="chapter"><h2><span>20</span>Sözlük</h2><p class="intro">Sistemde geçen terimler.</p><table><thead><tr><th>Terim</th><th>Anlamı</th></tr></thead><tbody><tr><td>Tahakkuk</td><td>Borcun kayda geçmesi (para henüz gelmemiş olabilir).</td></tr><tr><td>Tahsilat</td><td>Daireden para alınması.</td></tr><tr><td>Avans</td><td>Dairenin fazla ödediği, sonraki borçlara sayılacak para.</td></tr><tr><td>Mahsup</td><td>Avansın borca düşülmesi.</td></tr><tr><td>Virman</td><td>İki kasa / banka hesabı arasında para aktarımı.</td></tr><tr><td>Yevmiye</td><td>Bütün muhasebe kayıtlarının tarih sırasıyla tutulduğu defter.</td></tr><tr><td>Mizan</td><td>Hesapların borç-alacak toplamlarını gösteren kontrol tablosu.</td></tr><tr><td>Mali durum tablosu (bilanço)</td><td>Belli bir gündeki varlık ve yükümlülükler.</td></tr><tr><td>Yaşlandırma</td><td>Borçların kaç gündür gecikmede olduğuna göre gruplanması.</td></tr><tr><td>Arsa payı</td><td>Dairenin arsadaki payı; aidat bölüşümünde kullanılabilir.</td></tr><tr><td>Hazirun cetveli</td><td>Genel kurula katılanların imza listesi.</td></tr><tr><td>Kur farkı</td><td>Döviz alım maliyeti ile bozdurma / ödeme anındaki değer arasındaki fark.</td></tr><tr><td>Ters kayıt</td><td>Hatalı kaydı silmeden, zıt yönde yeni kayıtla düzeltme.</td></tr><tr><td>Dönem kapatma</td><td>Belirli bir tarihe kadarki kayıtların kilitlenmesi.</td></tr><tr><td>Davet kodu</td><td>Sakinin kendi hesabını daireye bağlamasını sağlayan tek kullanımlık kod.</td></tr><tr><td>Denetim kaydı</td><td>Kim, ne zaman, hangi işlemi yaptı bilgisinin silinemez kaydı.</td></tr></tbody></table></div></body></html>

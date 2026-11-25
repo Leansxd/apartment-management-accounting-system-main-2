@@ -38,7 +38,10 @@ class LateFeeController extends Controller
             'late_fee_rate' => ['required', 'numeric', 'min:0', 'max:100'],
             'late_fee_grace_days' => ['required', 'integer', 'min:0', 'max:365'],
         ]);
-        $apartment->update($data + ['late_fee_enabled' => $request->boolean('late_fee_enabled')]);
+        $apartment->update($data + [
+            'late_fee_enabled' => $request->boolean('late_fee_enabled'),
+            'late_fee_auto_run' => $request->boolean('late_fee_auto_run'),
+        ]);
 
         return back()->with('status', 'Gecikme zammı ayarları kaydedildi.');
     }

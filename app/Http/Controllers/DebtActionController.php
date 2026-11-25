@@ -5,15 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Apartment;
 use App\Models\CashTransaction;
 use App\Models\Debt;
+use App\Models\DebtPayment;
 use App\Services\FinanceService;
 use Illuminate\Http\Request;
 
 /** Tek bir borç / kasa hareketi üzerindeki işlemler: taksitlendirme, icra işareti, iptal, makbuz */
 class DebtActionController extends Controller
 {
-    public function __construct(private FinanceService $finance)
-    {
-    }
+    public function __construct(private FinanceService $finance) {}
 
     public function installments(Request $request, Apartment $apartment, Debt $debt)
     {
@@ -47,9 +46,16 @@ class DebtActionController extends Controller
     /** Yazdırılabilir tahsilat / ödeme makbuzu */
     public function receipt(Apartment $apartment, CashTransaction $cashTransaction)
     {
+        $parts = $cashTransaction->payment_group
+            ? $apartment->cashTransactions()->where('payment_group', $cashTransaction->payment_group)->with('cashbox')->orderBy('id')->get()
+            : collect([$cashTransaction->load('cashbox')]);
+
         return view('site.finance.receipt', [
             'apartment' => $apartment,
-            'tx' => $cashTransaction->load('unit.block', 'unit.members', 'cashbox', 'performer'),
+            'tx' => $cashTransaction->load('unit.block', 'unit.members', 'cashbox', 'performer', 'payer'),
+            'parts' => $parts,
+            // Bu ödemeyle kapanan borçlar (makbuzda "ödenen borçlar" dökümü)
+            'payments' => DebtPayment::whereIn('cash_transaction_id', $parts->pluck('id'))->with('debt')->orderBy('id')->get(),
         ]);
     }
 }

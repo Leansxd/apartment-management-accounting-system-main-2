@@ -19,7 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias(['admin' => EnsureAdmin::class, 'resident' => EnsureResident::class, 'site.role' => EnsureSiteRole::class]);
         $middleware->redirectGuestsTo('/login');
-        $middleware->redirectUsersTo('/');
+        $middleware->redirectUsersTo(fn (Request $request) => $request->user()?->isAdmin() ? '/' : '/portal');
         $middleware->trustHosts();
         $middleware->append(SecurityHeaders::class);
     })

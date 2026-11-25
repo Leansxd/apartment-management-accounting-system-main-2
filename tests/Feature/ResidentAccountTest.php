@@ -81,7 +81,7 @@ class ResidentAccountTest extends TestCase
         $resident = User::factory()->create();
         $site->members()->create(['unit_id' => $this->unit($site, 1)->id, 'user_id' => $resident->id, 'type' => 'owner', 'full_name' => $resident->name]);
 
-        $this->actingAs($owner)->get(route('users.index'))->assertOk()->assertSee('Test Sitesi · A-2');
+        $this->actingAs($owner)->get(route('users.index'))->assertOk()->assertSeeText('Test Sitesi · A-2');
     }
 
     public function test_yonetici_baska_sitedeki_dairesini_gormez(): void
@@ -96,7 +96,7 @@ class ResidentAccountTest extends TestCase
         }
 
         $this->actingAs($manager)->get(route('users.index'))->assertOk()
-            ->assertSee('Test Sitesi · A-1')
+            ->assertSeeText('Test Sitesi · A-1')
             ->assertDontSee('Gizli Site');
     }
 

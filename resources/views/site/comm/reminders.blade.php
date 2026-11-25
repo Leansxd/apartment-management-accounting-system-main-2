@@ -1,4 +1,18 @@
 <x-layout heading="Akıllı Borç Hatırlatıcı" :subheading="$apartment->name.' · vadesi geçmiş borcu olan daireler'">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
+    <form method="POST" action="{{ route('site.reminders.settings', $apartment) }}" class="card">
+        @csrf @method('PUT')
+        <div class="card-head"><h2 class="card-title">Otomatik hatırlatma</h2>
+            <span class="text-xs text-slate-500">Son gönderim: {{ $apartment->reminder_last_run_at?->format('d.m.Y H:i') ?? 'henüz yok' }}</span></div>
+        <div class="card-body flex flex-wrap items-end gap-5">
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="reminder_auto_run" value="1" class="rounded border-slate-300" @checked($apartment->reminder_auto_run)> Gecikmiş dairelere otomatik hatırlat</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="reminder_send_email" value="1" class="rounded border-slate-300" @checked($apartment->reminder_send_email)> E-posta da gönder</label>
+            <div><label class="label" for="reminder_interval_days">Kaç günde bir</label><input class="input !w-28" id="reminder_interval_days" type="number" min="1" max="60" name="reminder_interval_days" value="{{ old('reminder_interval_days', $apartment->reminder_interval_days) }}" required></div>
+            <button class="btn btn-secondary">Kaydet</button>
+        </div>
+    </form>
+
     <form method="POST" action="{{ route('site.reminders.send', $apartment) }}" class="card">
         @csrf
         <div class="card-head">
@@ -15,8 +29,8 @@
                 @forelse ($overdue as $row)
                     <tr>
                         <td><input type="checkbox" name="unit_ids[]" value="{{ $row['unit']->id }}" checked aria-label="{{ $row['unit']->label() }} seç" class="rounded border-slate-300"></td>
-                        <td class="font-medium">{{ $row['unit']->label() }}</td>
-                        <td>{{ $row['unit']->members->pluck('full_name')->implode(', ') ?: '—' }}</td>
+                        <td class="font-medium"><x-unit-link :unit="$row['unit']" /></td>
+                        <td><x-member-links :members="$row['unit']->members" /></td>
                         <td>{{ $row['unit']->members->pluck('phone')->filter()->implode(', ') ?: '—' }}</td>
                         <td class="num">{{ $row['count'] }}</td>
                         <td>{{ $row['oldest'] }}</td>

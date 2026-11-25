@@ -1,4 +1,6 @@
 <x-layout heading="Görevler" :subheading="$apartment->name">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <details class="panel card" @if($errors->any()) open @endif>
         <summary class="card-head"><span class="card-title">+ Görev ata</span></summary>
         <form method="POST" action="{{ route('site.tasks.store', $apartment) }}" class="card-body space-y-4">
@@ -14,6 +16,8 @@
             <button class="btn btn-primary">Görevi oluştur</button>
         </form>
     </details>
+
+    <x-dash.filters :fields="[['name' => 'priority', 'label' => 'Öncelik', 'type' => 'select', 'options' => \App\Models\Task::PRIORITIES], ['name' => 'category', 'label' => 'Kategori', 'type' => 'select', 'options' => \App\Models\Task::CATEGORIES], ['name' => 'staff_id', 'label' => 'Personel', 'type' => 'select', 'options' => $staff->pluck('name', 'id')->all()], ['name' => 'overdue', 'label' => 'Yalnızca gecikenler', 'type' => 'check']]" :keep="['status']" />
 
     <section class="card">
         <div class="card-head">
@@ -39,7 +43,7 @@
                             <form method="POST" action="{{ route('site.tasks.update', [$apartment, $t]) }}" class="flex gap-1">
                                 @csrf @method('PATCH')
                                 <label class="sr-only" for="ts-{{ $t->id }}">Durum</label>
-                                <select class="input !w-auto !py-1 text-xs" id="ts-{{ $t->id }}" name="status" onchange="this.form.submit()">@foreach (\App\Models\Task::STATUSES as $k => $v)<option value="{{ $k }}" @selected($t->status === $k)>{{ $v }}</option>@endforeach</select>
+                                <select class="input !w-auto !py-1 text-xs" id="ts-{{ $t->id }}" name="status" data-autosubmit>@foreach (\App\Models\Task::STATUSES as $k => $v)<option value="{{ $k }}" @selected($t->status === $k)>{{ $v }}</option>@endforeach</select>
                                 <noscript><button class="btn btn-secondary btn-sm">Kaydet</button></noscript>
                             </form>
                         </td>

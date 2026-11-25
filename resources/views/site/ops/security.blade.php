@@ -1,4 +1,6 @@
 <x-layout heading="Güvenlik & Kargo" :subheading="$apartment->name">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <nav class="flex flex-wrap gap-2" aria-label="Kayıt türü">
         @foreach (\App\Models\SecurityEntry::KINDS as $k => $label)
             <a class="btn {{ $kind === $k ? 'btn-primary' : 'btn-secondary' }}" href="{{ route('site.security.index', [$apartment, 'kind' => $k]) }}" @if($kind === $k) aria-current="page" @endif>
@@ -27,6 +29,8 @@
         </form>
     </section>
 
+    <x-dash.filters :fields="[['name' => 'from', 'label' => 'Başlangıç', 'type' => 'date'], ['name' => 'to', 'label' => 'Bitiş', 'type' => 'date'], ['name' => 'q', 'label' => 'Ara', 'type' => 'search', 'placeholder' => 'Ad, plaka, takip no veya daire']]" :keep="['kind']" />
+
     <section class="card">
         <div class="card-head">
             <h2 class="card-title">Kayıtlar</h2>
@@ -46,7 +50,7 @@
                             <form method="POST" action="{{ route('site.security.update', [$apartment, $e]) }}">
                                 @csrf @method('PATCH')
                                 <label class="sr-only" for="st-{{ $e->id }}">Durum</label>
-                                <select class="input !w-auto !py-1 text-xs" id="st-{{ $e->id }}" name="status" onchange="this.form.submit()">
+                                <select class="input !w-auto !py-1 text-xs" id="st-{{ $e->id }}" name="status" data-autosubmit>
                                     @foreach (\App\Models\SecurityEntry::STATUSES[$e->kind] as $k => $v)<option value="{{ $k }}" @selected($e->status === $k)>{{ $v }}</option>@endforeach
                                 </select>
                                 <noscript><button class="btn btn-secondary btn-sm">Kaydet</button></noscript>

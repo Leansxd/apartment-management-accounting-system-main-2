@@ -1,5 +1,7 @@
 @php $v = fn (string $k, $default = null) => old($k, $input[$k] ?? $default); @endphp
 <x-layout heading="Sayaç Faturası Dağıtımı" :subheading="$apartment->name.' · su, ısınma, doğalgaz faturasını dairelere paylaştır'">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <section class="card">
         <div class="card-head"><h2 class="card-title">Fatura bilgileri</h2><span class="text-xs text-slate-500">Paylar kuruşu kuruşuna fatura tutarına eşit olur.</span></div>
         <form method="POST" action="{{ route('site.meter-bills.store', $apartment) }}" class="card-body space-y-4">
@@ -27,7 +29,7 @@
             <div class="overflow-x-auto">
                 <table class="table">
                     <thead><tr><th>Daire</th><th class="num">{{ $input['method'] === 'consumption' ? 'Tüketim' : ($input['method'] === 'area' ? 'm²' : 'Pay') }}</th><th class="num">Tutar</th></tr></thead>
-                    <tbody>@foreach ($preview as $row)<tr><td class="font-medium">{{ $row['unit']->label() }}</td><td class="num">{{ number_format($row['weight'], 3, ',', '.') }}</td><td class="num font-semibold">{{ tl($row['amount'] / 100) }}</td></tr>@endforeach</tbody>
+                    <tbody>@foreach ($preview as $row)<tr><td class="font-medium"><x-unit-link :unit="$row['unit']" /></td><td class="num">{{ number_format($row['weight'], 3, ',', '.') }}</td><td class="num font-semibold">{{ tl($row['amount'] / 100) }}</td></tr>@endforeach</tbody>
                 </table>
             </div>
         </section>
@@ -37,12 +39,12 @@
         <div class="card-head"><h2 class="card-title">Geçmiş dağıtımlar</h2></div>
         <div class="overflow-x-auto">
             <table class="table">
-                <thead><tr><th>Tarih</th><th>Açıklama</th><th>Tür</th><th>Dönem</th><th>Yöntem</th><th class="num">Daire</th><th class="num">Tutar</th></tr></thead>
+                <thead><tr><th>Tarih</th><th>Açıklama</th><th>Tür</th><th>Dönem</th><th>Yöntem</th><th class="num">Daire</th><th class="num">Tutar</th><th></th></tr></thead>
                 <tbody>
                 @forelse ($bills as $b)
-                    <tr><td>{{ $b->created_at->format('d.m.Y') }}</td><td>{{ $b->description }}</td><td>{{ $b->meter_type }}</td><td class="whitespace-nowrap">{{ $b->period_from->format('d.m') }} – {{ $b->period_to->format('d.m.Y') }}</td><td>{{ \App\Models\MeterBill::METHODS[$b->method] }}</td><td class="num">{{ $b->units_count }}</td><td class="num font-semibold">{{ tl($b->total_amount) }}</td></tr>
+                    <tr><td>{{ $b->created_at->format('d.m.Y') }}</td><td>{{ $b->description }}</td><td>{{ $b->meter_type }}</td><td class="whitespace-nowrap">{{ $b->period_from->format('d.m') }} – {{ $b->period_to->format('d.m.Y') }}</td><td>{{ \App\Models\MeterBill::METHODS[$b->method] }}</td><td class="num">{{ $b->units_count }}</td><td class="num font-semibold">{{ tl($b->total_amount) }}</td><td class="text-right"><form method="POST" action="{{ route('site.meter-bills.destroy', [$apartment, $b]) }}" onsubmit="return confirm('Fatura iptal edilsin mi? Tüm daire payları ters kayıtla silinir.')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">İptal et</button></form></td></tr>
                 @empty
-                    <tr><td colspan="7" class="text-center text-slate-500">Dağıtım yok.</td></tr>
+                    <tr><td colspan="8" class="text-center text-slate-500">Dağıtım yok.</td></tr>
                 @endforelse
                 </tbody>
             </table>

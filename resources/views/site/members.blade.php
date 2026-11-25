@@ -1,4 +1,6 @@
 <x-layout heading="Üyeler / Sakinler" :subheading="$apartment->name">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <details class="panel card" @if($errors->any()) open @endif>
         <summary class="card-head"><span class="card-title">+ Yeni üye ekle</span><span class="text-xs text-slate-500">Eklenen her üyeye mobil uygulama için davet kodu üretilir</span></summary>
         <form method="POST" action="{{ route('site.members.store', $apartment) }}" class="card-body space-y-4">
@@ -21,6 +23,8 @@
         </form>
     </details>
 
+    <x-dash.filters :fields="[['name' => 'type', 'label' => 'Tür', 'type' => 'select', 'options' => \App\Models\Member::TYPES], ['name' => 'block_id', 'label' => 'Blok', 'type' => 'select', 'options' => $blocks->pluck('name', 'id')->all()], ['name' => 'mobile', 'label' => 'Mobil', 'type' => 'select', 'options' => ['linked' => 'Bağlı', 'waiting' => 'Bekliyor']]]" :keep="['q']" />
+
     <section class="card">
         <div class="card-head">
             <h2 class="card-title">Üye listesi <a class="ml-2 text-[10px] font-bold text-brand-500 hover:underline" href="{{ route('site.members.history', $apartment) }}">Geçmiş üyeler →</a></h2>
@@ -37,8 +41,8 @@
                 <tbody>
                 @forelse ($members as $m)
                     <tr>
-                        <td class="font-medium">{{ $m->unit->label() }}</td>
-                        <td><a class="text-slate-900 hover:text-brand-600" href="{{ route('site.members.show', [$apartment, $m]) }}">{{ $m->full_name }}</a></td>
+                        <td class="font-medium"><x-unit-link :unit="$m->unit" /></td>
+                        <td><x-member-link :member="$m" /></td>
                         <td>{{ \App\Models\Member::TYPES[$m->type] ?? $m->type }}</td>
                         <td>{{ $m->phone ?: '—' }}</td>
                         <td>@if ($m->user_id)<span class="badge badge-green">Bağlı</span>@else<span class="badge badge-gray">Bekliyor</span>@endif</td>

@@ -12,6 +12,15 @@ class Debt extends Model
 
     public const PAID = 'paid';
 
+    /** Borcun sorumlusu; boşsa daire geneli (malik ve kiracının ortak borcu) */
+    public const RESPONSIBLES = ['owner' => 'Malik', 'tenant' => 'Kiracı'];
+
+    /** Borç bir gider faturasının daireye yansıtılmasıysa o gider */
+    public function expense(): BelongsTo
+    {
+        return $this->belongsTo(Expense::class);
+    }
+
     public const DISPLAY = [
         'paid' => 'Ödendi',
         'overdue' => 'Gecikmiş',

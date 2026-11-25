@@ -3,9 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Apartment;
-use App\Models\Decision;
 use App\Models\Meeting;
+use App\Models\Unit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -15,11 +16,14 @@ use Illuminate\Validation\Rule;
  */
 class MeetingController extends Controller
 {
-    public function index(Apartment $apartment)
+    public function index(Request $request, Apartment $apartment)
     {
         return view('site.comm.meetings', [
             'apartment' => $apartment,
-            'meetings' => $apartment->meetings()->withCount('attendances')->orderByDesc('meets_at')->get(),
+            'meetings' => $apartment->meetings()->withCount('attendances')
+                ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
+                ->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
+                ->orderByDesc('meets_at')->get(),
         ]);
     }
 
@@ -104,7 +108,7 @@ class MeetingController extends Controller
      * Toplantı yeter sayısı: katılan daire sayısı ve arsa payı toplamı, toplamın yarısından fazla olmalıdır.
      * Arsa payı girilmemişse yalnızca sayı çoğunluğu aranır.
      *
-     * @param  \Illuminate\Support\Collection<int, \App\Models\Unit>  $units
+     * @param  Collection<int, Unit>  $units
      * @param  array<int, int>  $presentIds
      */
     public function quorum($units, array $presentIds): array

@@ -4,31 +4,38 @@ namespace App\Http\Controllers;
 
 use App\Models\Apartment;
 use App\Models\BankStatementLine;
+use App\Models\Expense;
 use App\Services\BankImportService;
-use App\Services\FinanceException;
+use App\Services\ExchangeRateService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 /** Banka ekstresi içe aktarma ve mutabakat: satırı daireyle eşleştirip tahsilat / gider olarak işler. */
 class BankController extends Controller
 {
-    public function __construct(private BankImportService $bank)
-    {
-    }
+    public function __construct(private BankImportService $bank) {}
 
-    public function index(Request $request, Apartment $apartment)
+    public function index(Request $request, Apartment $apartment, ExchangeRateService $rates)
     {
         $status = in_array($request->query('status'), ['pending', 'posted', 'ignored'], true) ? $request->query('status') : 'pending';
 
         return view('site.finance.bank', [
             'apartment' => $apartment,
             'lines' => $apartment->bankLines()->with('unit.block', 'cashbox')->where('status', $status)
-                ->orderByDesc('line_date')->orderByDesc('id')->paginate(50)->withQueryString(),
+                ->orderByDesc('line_date')->orderByDesc('id')->paginate(10)->withQueryString(),
             'status' => $status,
-            'counts' => $apartment->bankLines()->selectRaw('status, COUNT(*) c, SUM(amount) s')->groupBy('status')->get()->keyBy('status'),
-            'cashboxes' => $apartment->cashboxes()->where('type', 'bank')->orderBy('name')->get()->whenEmpty(fn () => $apartment->cashboxes()->orderBy('name')->get()),
+            // Toplam TRY gösterilir: döviz hesabı satırları yalnızca adede katılır
+            'counts' => $apartment->bankLines()->join('cashboxes', 'cashboxes.id', '=', 'bank_statement_lines.cashbox_id')
+                ->selectRaw("bank_statement_lines.status, COUNT(*) c, SUM(CASE WHEN cashboxes.currency = 'TRY' THEN bank_statement_lines.amount ELSE 0 END) s")
+                ->groupBy('bank_statement_lines.status')->get()->keyBy('status'),
+            'rateSuggestions' => $rates->suggestions($apartment),
+            'cashboxes' => $apartment->activeCashboxes()->where('type', 'bank')->orderBy('name')->get()->whenEmpty(fn () => $apartment->cashboxes()->orderBy('name')->get()),
             'units' => $apartment->units()->with('block')->get()->sortBy(fn ($u) => [$u->block?->name, (int) $u->unit_no])->values(),
             'categories' => $apartment->categories()->orderBy('type')->orderBy('name')->get(),
+            'unmatched' => $apartment->activeCashboxes()->where('type', 'bank')->get()
+                ->mapWithKeys(fn ($box) => [$box->id => ['cashbox' => $box, 'items' => $this->bank->unmatchedCashTransactions($box)]])
+                ->filter(fn ($row) => $row['items']->isNotEmpty()),
+            'openExpenses' => $apartment->expenses()->where('status', 'pending')->orderBy('description')->get(),
             'matchedPending' => $apartment->bankLines()->where('status', 'pending')->where('amount', '>', 0)->whereNotNull('unit_id')->count(),
         ]);
     }
@@ -59,9 +66,15 @@ class BankController extends Controller
 
     public function post(Request $request, Apartment $apartment, BankStatementLine $bankLine)
     {
-        $data = $request->validate(['category_id' => ['nullable', Rule::exists('transaction_categories', 'id')->where('apartment_id', $apartment->id)]]);
+        $data = $request->validate([
+            'category_id' => ['nullable', Rule::exists('transaction_categories', 'id')->where('apartment_id', $apartment->id)],
+            'exchange_rate' => ['nullable', 'numeric', 'gt:0', 'max:99999'],
+            'expense_id' => ['nullable', Rule::exists('expenses', 'id')->where('apartment_id', $apartment->id)],
+        ]);
 
-        return $this->attempt(fn () => $this->bank->post($bankLine, $data['category_id'] ?? null, $request->user()), 'Satır kasa hareketine dönüştürüldü.');
+        return $this->attempt(fn () => $this->bank->post($bankLine, $data['category_id'] ?? null, $request->user(),
+            isset($data['exchange_rate']) ? (string) $data['exchange_rate'] : null,
+            isset($data['expense_id']) ? Expense::findOrFail($data['expense_id']) : null), 'Satır kasa hareketine dönüştürüldü.');
     }
 
     public function postMatched(Request $request, Apartment $apartment)

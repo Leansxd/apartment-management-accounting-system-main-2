@@ -11,6 +11,14 @@ if (! function_exists('tour')) {
     }
 }
 
+if (! function_exists('money')) {
+    /** Görünümlerde dövizli para biçimi: 1234.5, "USD" -> "1.234,50 $" */
+    function money(string|int|float|null $value, string $currency): string
+    {
+        return Money::formatIn($value, $currency);
+    }
+}
+
 if (! function_exists('tl')) {
     /** Görünümlerde para biçimi: 1234.5 -> "1.234,50 ₺" */
     function tl(string|int|float|null $value): string

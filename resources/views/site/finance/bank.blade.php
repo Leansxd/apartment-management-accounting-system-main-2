@@ -1,4 +1,6 @@
 <x-layout heading="Banka Hareketleri" :subheading="$apartment->name.' · ekstre içe aktarma ve mutabakat'">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <div class="grid gap-6 lg:grid-cols-3">
         <section class="card lg:col-span-2">
             <div class="card-head"><h2 class="card-title">Banka ekstresi yükle (CSV)</h2></div>
@@ -6,7 +8,7 @@
                 @csrf
                 <div class="grid gap-3 sm:grid-cols-2">
                     <div><label class="label" for="cashbox_id">Banka hesabı *</label>
-                        <select class="input" id="cashbox_id" name="cashbox_id" required>@foreach ($cashboxes as $c)<option value="{{ $c->id }}">{{ $c->name }}</option>@endforeach</select></div>
+                        <select class="input" id="cashbox_id" name="cashbox_id" required>@foreach ($cashboxes as $c)<option value="{{ $c->id }}">{{ $c->labelWithCurrency() }}</option>@endforeach</select></div>
                     <div><label class="label" for="file">CSV dosyası *</label><input class="input" id="file" type="file" name="file" accept=".csv,.txt" required></div>
                 </div>
                 <p class="text-xs text-slate-500">Başlık satırında <b>Tarih</b>, <b>Açıklama</b> ve <b>Tutar</b> (veya <b>Giriş/Çıkış</b>) sütunları olmalıdır; ayraç <code>;</code> veya <code>,</code>. Excel'den "CSV olarak kaydet" yeterlidir.
@@ -41,17 +43,17 @@
                     <tr>
                         <td class="whitespace-nowrap">{{ $l->line_date->format('d.m.Y') }}</td>
                         <td>{{ $l->description }}@if ($l->reference)<span class="block font-mono text-[11px] text-slate-400">{{ $l->reference }}</span>@endif</td>
-                        <td class="num font-semibold {{ $l->amount > 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ $l->amount > 0 ? '+' : '−' }}{{ tl(abs($l->amount)) }}</td>
+                        <td class="num font-semibold {{ $l->amount > 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ $l->amount > 0 ? '+' : '−' }}{{ money(abs($l->amount), $l->cashbox->currency) }}</td>
                         <td>
                             @if ($status === 'pending' && $l->amount > 0)
                                 <form method="POST" action="{{ route('site.bank.assign', [$apartment, $l]) }}" class="flex gap-1">
                                     @csrf @method('PATCH')
                                     <label class="sr-only" for="u-{{ $l->id }}">Daire</label>
-                                    <select class="input !w-auto !py-1 text-xs" id="u-{{ $l->id }}" name="unit_id" onchange="this.form.submit()">
+                                    <select class="input !w-auto !py-1 text-xs" id="u-{{ $l->id }}" name="unit_id" data-autosubmit>
                                         <option value="">Daire yok (genel gelir)</option>@foreach ($units as $u)<option value="{{ $u->id }}" @selected($l->unit_id === $u->id)>{{ $u->label() }}</option>@endforeach
                                     </select>
                                 </form>
-                            @else{{ $l->unit?->label() ?? '—' }}@endif
+                            @else<x-unit-link :unit="$l->unit" />@endif
                         </td>
                         <td class="whitespace-nowrap text-right">
                             @if ($status === 'pending')
@@ -60,7 +62,15 @@
                                     @unless ($l->amount > 0 && $l->unit_id)
                                         <label class="sr-only" for="c-{{ $l->id }}">Kategori</label>
                                         <select class="input !w-auto !py-1 text-xs" id="c-{{ $l->id }}" name="category_id"><option value="">Kategori</option>@foreach ($categories->where('type', $l->amount > 0 ? 'income' : 'expense') as $c)<option value="{{ $c->id }}">{{ $c->name }}</option>@endforeach</select>
+                                        @if ($l->amount < 0 && $openExpenses->isNotEmpty())
+                                            <label class="sr-only" for="e-{{ $l->id }}">Gider</label>
+                                            <select class="input !w-auto !py-1 text-xs" id="e-{{ $l->id }}" name="expense_id"><option value="">Mevcut gidere bağla</option>@foreach ($openExpenses as $e)<option value="{{ $e->id }}">{{ $e->description }} · {{ tl($e->remainingAmount()) }}</option>@endforeach</select>
+                                        @endif
                                     @endunless
+                                    @if ($l->amount > 0 && $l->cashbox->isForeign())
+                                        <label class="sr-only" for="r-{{ $l->id }}">Kur</label>
+                                        <input class="input !w-24 !py-1 text-xs" id="r-{{ $l->id }}" type="number" step="0.000001" min="0.000001" name="exchange_rate" value="{{ $rateSuggestions[$l->cashbox->currency]['rate'] ?? '' }}" placeholder="Kur" required>
+                                    @endif
                                     <button class="btn btn-primary btn-sm">{{ $l->amount > 0 && $l->unit_id ? 'Tahsil et' : ($l->amount > 0 ? 'Gelir yaz' : 'Gider yaz') }}</button>
                                 </form>
                                 <form method="POST" action="{{ route('site.bank.ignore', [$apartment, $l]) }}" class="inline">@csrf @method('PATCH')<button class="btn btn-secondary btn-sm">Yok say</button></form>
@@ -77,4 +87,23 @@
         </div>
         <div class="px-5 py-3">{{ $lines->links() }}</div>
     </section>
+
+    @if ($unmatched->isNotEmpty())
+        <section class="card">
+            <div class="card-head"><h2 class="card-title">Ekstrede karşılığı olmayan kasa hareketleri</h2></div>
+            <div class="card-body space-y-4 text-sm">
+                <p class="text-xs text-slate-500">Ekstrenin kapsadığı tarihlerde kasada kayıtlı olup hiçbir ekstre satırına bağlanmamış hareketler. Bankada görünmüyorsa eksik veya hatalı girilmiş olabilir.</p>
+                @foreach ($unmatched as $row)
+                    <div>
+                        <p class="font-semibold">{{ $row['cashbox']->name }}</p>
+                        <ul class="divide-y divide-slate-100">
+                            @foreach ($row['items'] as $t)
+                                <li class="flex justify-between py-1"><span>{{ $t->created_at->format('d.m.Y') }} · {{ $t->description }}</span><b class="tabular-nums {{ $t->type === 'income' ? 'text-emerald-600' : 'text-rose-600' }}">{{ $t->type === 'income' ? '+' : '−' }}{{ tl($t->amount) }}</b></li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endforeach
+            </div>
+        </section>
+    @endif
 </x-layout>

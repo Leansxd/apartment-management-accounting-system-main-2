@@ -1,4 +1,6 @@
 <x-layout heading="Toplantılar" :subheading="$apartment->name.' · genel kurul ve yönetim kurulu'">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <details class="panel card" @if($errors->any()) open @endif>
         <summary class="card-head"><span class="card-title">+ Toplantı planla</span></summary>
         <form method="POST" action="{{ route('site.meetings.store', $apartment) }}" class="card-body space-y-4">
@@ -13,6 +15,8 @@
             <button class="btn btn-primary">Oluştur</button>
         </form>
     </details>
+
+    <x-dash.filters :fields="[['name' => 'status', 'label' => 'Durum', 'type' => 'select', 'options' => \App\Models\Meeting::STATUSES], ['name' => 'type', 'label' => 'Tür', 'type' => 'select', 'options' => \App\Models\Meeting::TYPES]]" />
 
     <section class="card">
         <div class="overflow-x-auto">

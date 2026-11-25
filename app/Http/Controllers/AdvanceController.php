@@ -25,7 +25,7 @@ class AdvanceController extends Controller
             'apartment' => $apartment,
             'units' => $units,
             'openByUnit' => $openByUnit,
-            'cashboxes' => $apartment->cashboxes()->orderBy('name')->get(),
+            'cashboxes' => $apartment->activeCashboxes()->where('currency', Cashbox::BASE_CURRENCY)->orderBy('name')->get(),
             'total' => (float) $units->sum('credit_balance'),
         ]);
     }

@@ -1,4 +1,6 @@
 <x-layout heading="Firmalar / Tedarikçiler" :subheading="$apartment->name">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <details class="panel card" @if($errors->any()) open @endif>
         <summary class="card-head"><span class="card-title">+ Firma ekle</span></summary>
         <form method="POST" action="{{ route('site.vendors.store', $apartment) }}" class="card-body space-y-4">
@@ -7,6 +9,8 @@
             <button class="btn btn-primary">Kaydet</button>
         </form>
     </details>
+
+    <x-dash.filters :fields="[['name' => 'q', 'label' => 'Ara', 'type' => 'search', 'placeholder' => 'Firma adı']]" />
 
     <section class="card">
         <div class="overflow-x-auto">

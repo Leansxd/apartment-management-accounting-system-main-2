@@ -24,6 +24,11 @@ class MeterBillController extends Controller
         ]);
     }
 
+    public function destroy(Request $request, Apartment $apartment, MeterBill $meterBill, MeterBillService $service)
+    {
+        return $this->attempt(fn () => $service->cancel($meterBill, $request->user()), 'Fatura iptal edildi, daire payları ters kayıtla silindi.');
+    }
+
     public function store(Request $request, Apartment $apartment, MeterBillService $service)
     {
         $data = $request->validate([

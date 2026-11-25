@@ -20,7 +20,7 @@ class DocumentController extends Controller
             'documents' => $apartment->documents()->with('uploader')
                 ->when($category, fn ($q) => $q->where('category', $category))
                 ->when($request->query('q'), fn ($q, $s) => $q->where('title', 'like', "%{$s}%"))
-                ->latest('id')->paginate(30)->withQueryString(),
+                ->latest('id')->paginate(10)->withQueryString(),
             'category' => $category,
             'expiring' => $apartment->documents()->whereNotNull('expires_on')->whereDate('expires_on', '<=', today()->addDays(30))->orderBy('expires_on')->get(),
         ]);
@@ -50,6 +50,26 @@ class DocumentController extends Controller
         abort_unless(Storage::disk('local')->exists($document->file_path), 404, 'Dosya bulunamadı.');
 
         return Storage::disk('local')->download($document->file_path, $document->original_name);
+    }
+
+    /**
+     * Belgeyi yeni sekmede açar (PDF, görsel, metin). Metin dosyaları düz metin olarak ve betik çalıştırmayı
+     * engelleyen başlıklarla gönderilir. Tarayıcının açamadığı türler indirilir.
+     */
+    public function view(Apartment $apartment, Document $document)
+    {
+        $type = $document->viewableType();
+        if ($type === null) {
+            return redirect()->route('site.documents.download', [$apartment, $document]);
+        }
+        abort_unless(Storage::disk('local')->exists($document->file_path), 404, 'Dosya bulunamadı.');
+
+        $headers = ['Content-Type' => $type, 'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'private, no-store'];
+        if (str_starts_with($type, 'text/')) {
+            $headers['Content-Security-Policy'] = "default-src 'none'; sandbox";
+        }
+
+        return Storage::disk('local')->response($document->file_path, $document->original_name, $headers, 'inline');
     }
 
     public function destroy(Apartment $apartment, Document $document)

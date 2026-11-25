@@ -1,4 +1,6 @@
 <x-layout heading="Anket & Oylama" :subheading="$apartment->name.' · sakinler mobil uygulamadan daire başına bir oy kullanır'">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <section class="card">
         <div class="card-head"><h2 class="card-title">Yeni anket</h2></div>
         <form method="POST" action="{{ route('site.polls.store', $apartment) }}" class="card-body space-y-3">
@@ -31,6 +33,15 @@
                 @endforeach
                 <div class="flex gap-1 pt-1">
                     <form method="POST" action="{{ route('site.polls.toggle', [$apartment, $poll]) }}">@csrf @method('PATCH')<button class="btn btn-secondary btn-sm">{{ $poll->is_active ? 'Kapat' : 'Yeniden aç' }}</button></form>
+                    <x-dash.edit-panel :action="route('site.polls.update', [$apartment, $poll])">
+                        @if ($poll->votes_count === 0)
+                            <div><label class="label" for="po-q-{{ $poll->id }}">Soru *</label><input class="input" id="po-q-{{ $poll->id }}" name="question" maxlength="200" value="{{ $poll->question }}" required></div>
+                            <div><label class="label" for="po-o-{{ $poll->id }}">Seçenekler (her satıra bir tane) *</label><textarea class="input" id="po-o-{{ $poll->id }}" name="options" rows="4" required>{{ $poll->options->pluck('text')->implode("\n") }}</textarea></div>
+                        @else
+                            <p class="text-xs text-slate-500">Oy kullanıldığı için yalnızca bitiş tarihi değiştirilebilir.</p>
+                        @endif
+                        <div><label class="label" for="po-d-{{ $poll->id }}">Bitiş tarihi</label><input class="input" id="po-d-{{ $poll->id }}" type="date" name="due_date" value="{{ $poll->due_date?->toDateString() }}"></div>
+                    </x-dash.edit-panel>
                     <form method="POST" action="{{ route('site.polls.destroy', [$apartment, $poll]) }}" onsubmit="return confirm('Anket ve oylar silinsin mi?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Sil</button></form>
                 </div>
             </article>

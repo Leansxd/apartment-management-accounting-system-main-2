@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Apartment;
+use App\Models\Cashbox;
 use App\Models\Debt;
 use App\Models\Unit;
 use App\Support\Money;
@@ -36,7 +37,7 @@ class ReportService
             'overdue' => (float) $apartment->debts()->where('status', Debt::PENDING)
                 ->whereDate('due_date', '<', today())->sum('remaining_amount'),
             'advances' => (float) $apartment->units()->sum('credit_balance'),
-            'pending_expenses' => (float) $apartment->expenses()->where('status', 'pending')->sum('total_amount'),
+            'pending_expenses' => (float) $apartment->expenses()->where('status', 'pending')->sum(DB::raw('total_amount - paid_amount')),
         ];
     }
 
@@ -72,6 +73,7 @@ class ReportService
             $month = $start->addMonths($i);
             $items = $rows->get($month->format('Y-m'), collect());
             $result[] = [
+                'key' => $month->format('Y-m'),
                 'label' => $month->locale('tr')->translatedFormat('M Y'),
                 'income' => (float) $items->where('type', 'income')->sum('amount'),
                 'expense' => (float) $items->where('type', 'expense')->sum('amount'),
@@ -139,28 +141,72 @@ class ReportService
             })->values();
     }
 
+    /**
+     * Blok bazında tahakkuk, tahsilat ve gecikme.
+     *
+     * @return Collection<int, array{block:string, units:int, accrued:float, paid:float, remaining:float, overdue:float, rate:float}>
+     */
+    public function blockComparison(Apartment $apartment): Collection
+    {
+        $unitCounts = $apartment->units()->groupBy('block_id')->selectRaw('block_id, COUNT(*) total')->pluck('total', 'block_id');
+        $debts = $apartment->debts()->join('units', 'units.id', '=', 'debts.unit_id')->groupBy('units.block_id')
+            ->selectRaw('units.block_id, SUM(debts.amount) accrued, SUM(debts.paid_amount) paid, SUM(debts.remaining_amount) remaining')
+            ->selectRaw('SUM(CASE WHEN debts.status = ? AND debts.due_date < ? THEN debts.remaining_amount ELSE 0 END) overdue', [Debt::PENDING, today()->toDateString()])
+            ->get()->keyBy('block_id');
+
+        return $apartment->blocks()->orderBy('name')->get()->map(function ($block) use ($unitCounts, $debts) {
+            $row = $debts->get($block->id);
+            $accrued = (float) ($row->accrued ?? 0);
+            $paid = (float) ($row->paid ?? 0);
+
+            return [
+                'block' => $block->name, 'units' => (int) ($unitCounts[$block->id] ?? 0), 'accrued' => $accrued, 'paid' => $paid,
+                'remaining' => (float) ($row->remaining ?? 0), 'overdue' => (float) ($row->overdue ?? 0),
+                'rate' => $accrued > 0 ? round($paid / $accrued * 100, 1) : 0.0,
+            ];
+        })->values();
+    }
+
+    /** TRY olarak uygulanan tutarın orijinal döviz karşılığı: " (100,00 $ × 30,5000)" */
+    private function foreignNote(?string $currency, string|float|null $rate, string|float $tryAmount): string
+    {
+        if ($currency === null || $currency === Cashbox::BASE_CURRENCY || (float) $rate <= 0) {
+            return '';
+        }
+
+        return ' ('.Money::formatIn(round((float) $tryAmount / (float) $rate, 2), $currency).' × '.Money::formatRate($rate).')';
+    }
+
     /** Daire hesap ekstresi: borç ve ödemeler tarih sırasıyla, yürüyen bakiyeyle */
     public function statement(Unit $unit, ?string $from = null, ?string $to = null): array
     {
         $debts = $unit->debts()->get();
-        $payments = DB::table('debt_payments')->where('unit_id', $unit->id)->get();
+        $payments = DB::table('debt_payments')->leftJoin('cash_transactions', 'cash_transactions.id', '=', 'debt_payments.cash_transaction_id')
+            ->where('debt_payments.unit_id', $unit->id)
+            ->select('debt_payments.*', 'cash_transactions.currency', 'cash_transactions.exchange_rate')->get();
         $advances = $unit->cashTransactions()->effective()->where('type', 'income')->where('to_advance', '>', 0)->get();
+        $refunds = $unit->cashTransactions()->effective()->where('sub_type', 'refund')->get();
 
         $lines = collect();
         foreach ($debts as $d) {
             $lines->push(['date' => $d->created_at, 'description' => $d->description, 'debit' => (float) $d->amount,
-                'credit' => 0.0, 'due' => $d->due_date]);
+                'credit' => 0.0, 'due' => $d->due_date, 'tx_id' => null]);
         }
         foreach ($payments as $p) {
             // Avans mahsubu bakiyeyi değiştirmez: avans, girdiği anda zaten alacak olarak yazıldı.
             $isCreditUsage = $p->type === 'credit_usage';
             $lines->push(['date' => CarbonImmutable::parse($p->created_at),
-                'description' => $isCreditUsage ? 'Avans mahsubu: '.Money::format($p->amount) : 'Tahsilat',
-                'debit' => 0.0, 'credit' => $isCreditUsage ? 0.0 : (float) $p->amount, 'due' => null]);
+                'description' => $isCreditUsage ? 'Avans mahsubu: '.Money::format($p->amount) : 'Tahsilat'.$this->foreignNote($p->currency, $p->exchange_rate, $p->amount),
+                'debit' => 0.0, 'credit' => $isCreditUsage ? 0.0 : (float) $p->amount, 'due' => null, 'tx_id' => $p->cash_transaction_id]);
         }
         foreach ($advances as $t) {
-            $lines->push(['date' => $t->created_at, 'description' => 'Avans (fazla ödeme)', 'debit' => 0.0,
-                'credit' => (float) $t->to_advance, 'due' => null]);
+            $lines->push(['date' => $t->created_at, 'description' => 'Avans (fazla ödeme)'.$this->foreignNote($t->currency, $t->exchange_rate, $t->to_advance), 'debit' => 0.0,
+                'credit' => (float) $t->to_advance, 'due' => null, 'tx_id' => $t->id]);
+        }
+
+        // Avans iadesi: sakine geri ödenen avans, alacak bakiyesini o kadar azaltır
+        foreach ($refunds as $t) {
+            $lines->push(['date' => $t->created_at, 'description' => 'Avans iadesi', 'debit' => (float) $t->amount, 'credit' => 0.0, 'due' => null, 'tx_id' => $t->id]);
         }
 
         $balance = 0;
@@ -171,6 +217,7 @@ class ReportService
             if ($from && $line['date']->toDateString() < $from) {
                 $opening += $effect;
                 $balance += $effect;
+
                 continue;
             }
             if ($to && $line['date']->toDateString() > $to) {
@@ -183,6 +230,8 @@ class ReportService
         return [
             'opening' => $opening / 100,
             'rows' => $rows,
+            'period_debit' => round(array_sum(array_column($rows, 'debit')), 2),
+            'period_credit' => round(array_sum(array_column($rows, 'credit')), 2),
             'closing' => $balance / 100,
             'open_debt' => (float) $unit->debts()->where('status', Debt::PENDING)->sum('remaining_amount'),
             'credit' => (float) $unit->credit_balance,

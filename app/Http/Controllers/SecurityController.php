@@ -19,7 +19,11 @@ class SecurityController extends Controller
             'kind' => $kind,
             'entries' => $apartment->securityEntries()->where('kind', $kind)
                 ->when($request->boolean('open'), fn ($q) => $q->whereIn('status', ['beklemede', 'aktif']))
-                ->latest('id')->paginate(40)->withQueryString(),
+                ->when($this->dateQuery($request, 'from'), fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+                ->when($this->dateQuery($request, 'to'), fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
+                ->when($request->query('q'), fn ($q, $s) => $q->where(fn ($w) => $w->where('full_name', 'like', "%{$s}%")->orWhere('plate', 'like', "%{$s}%")
+                    ->orWhere('tracking_no', 'like', "%{$s}%")->orWhere('unit_no', 'like', "%{$s}%")))
+                ->latest('id')->paginate(10)->withQueryString(),
             'openCounts' => $apartment->securityEntries()->whereIn('status', ['beklemede', 'aktif'])
                 ->selectRaw('kind, COUNT(*) c')->groupBy('kind')->pluck('c', 'kind'),
         ]);

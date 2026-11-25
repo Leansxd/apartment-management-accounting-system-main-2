@@ -1,4 +1,6 @@
 <x-layout heading="Demirbaş Kaydı" :subheading="$apartment->name.' · doğrusal amortisman'">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <div class="grid gap-4 sm:grid-cols-3">
         <div class="stat"><p class="stat-label">Alış değeri</p><p class="stat-value">{{ tl($cost) }}</p></div>
         <div class="stat"><p class="stat-label">Birikmiş amortisman</p><p class="stat-value text-rose-600">{{ tl($depreciation) }}</p></div>
@@ -13,6 +15,8 @@
             <button class="btn btn-primary">Kaydet</button>
         </form>
     </details>
+
+    <x-dash.filters :fields="[['name' => 'category', 'label' => 'Kategori', 'type' => 'select', 'options' => array_combine(\App\Models\Asset::CATEGORIES, \App\Models\Asset::CATEGORIES)], ['name' => 'status', 'label' => 'Durum', 'type' => 'select', 'options' => ['active' => 'Kullanımda', 'disposed' => 'Elden çıkarıldı']]]" />
 
     <section class="card">
         <div class="overflow-x-auto">

@@ -20,7 +20,14 @@
                             </select></div>
                         <button class="btn btn-primary">Kaydet</button>
                     </form>
-                    <form method="POST" action="{{ route('users.destroy', $user) }}" class="ml-auto" onsubmit="return confirm('Kullanıcı silinsin mi? Daire bağlantıları kaldırılır.')">@csrf @method('DELETE')<button class="btn btn-danger">Kullanıcıyı sil</button></form>
+                    <span class="ml-auto">
+                    <x-dash.edit-panel :action="route('users.update', $user)" label="Bilgileri düzenle">
+                        <div><label class="label" for="us-name">Ad soyad *</label><input class="input" id="us-name" name="name" maxlength="120" value="{{ $user->name }}" required></div>
+                        <div><label class="label" for="us-email">E-posta *</label><input class="input" id="us-email" type="email" name="email" maxlength="120" value="{{ $user->email }}" required></div>
+                        <div><label class="label" for="us-phone">Telefon</label><input class="input" id="us-phone" name="phone" maxlength="30" value="{{ $user->phone }}"></div>
+                    </x-dash.edit-panel>
+                    </span>
+                    <form method="POST" action="{{ route('users.destroy', $user) }}" onsubmit="return confirm('Kullanıcı silinsin mi? Daire bağlantıları kaldırılır.')">@csrf @method('DELETE')<button class="btn btn-danger">Kullanıcıyı sil</button></form>
                 </div>
             </section>
         @endunless
@@ -38,7 +45,7 @@
         <ul class="divide-y divide-slate-100">
             @forelse ($memberships as $m)
                 <li class="flex justify-between px-5 py-2.5 text-sm">
-                    <span>{{ $m->apartment->name }} · <b>{{ $m->unit->label() }}</b> <span class="text-slate-400">({{ \App\Models\Member::TYPES[$m->type] ?? $m->type }})</span></span>
+                    <span>{{ $m->apartment->name }} · <b><x-unit-link :unit="$m->unit" /></b> <span class="text-slate-400">({{ \App\Models\Member::TYPES[$m->type] ?? $m->type }})</span></span>
                     <a class="text-brand-600" href="{{ route('site.members.show', [$m->apartment, $m]) }}">Üye kaydı</a>
                 </li>
             @empty
@@ -54,7 +61,7 @@
                 <thead><tr><th>Daire</th><th>Açıklama</th><th>Vade</th><th class="num">Tutar</th><th class="num">Kalan</th><th>Durum</th></tr></thead>
                 <tbody>
                 @forelse ($debts as $d)
-                    <tr><td>{{ $d->unit->label() }}</td><td>{{ $d->description }}</td><td>{{ $d->due_date->format('d.m.Y') }}</td><td class="num">{{ tl($d->amount) }}</td><td class="num">{{ tl($d->remaining_amount) }}</td><td><x-debt-status :debt="$d" /></td></tr>
+                    <tr><td><x-unit-link :unit="$d->unit" /></td><td>{{ $d->description }}</td><td>{{ $d->due_date->format('d.m.Y') }}</td><td class="num">{{ tl($d->amount) }}</td><td class="num">{{ tl($d->remaining_amount) }}</td><td><x-debt-status :debt="$d" /></td></tr>
                 @empty
                     <tr><td colspan="6" class="text-center text-slate-500">Borç yok.</td></tr>
                 @endforelse

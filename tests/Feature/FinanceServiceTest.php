@@ -119,6 +119,38 @@ class FinanceServiceTest extends TestCase
         $this->assertLedgerBalanced($apt);
     }
 
+    public function test_taksitlendirilmis_odemesiz_borc_silinince_taksitler_de_silinir(): void
+    {
+        $apt = $this->site(1);
+        $unit = $this->unit($apt);
+        $this->finance->accrue($unit, $this->fields(9000));
+        $debt = Debt::first();
+        $this->finance->installments($debt, 3, '2026-03-01');
+
+        $this->finance->deleteDebt($debt->fresh());
+
+        $this->assertSame(0, Debt::count());
+        $this->assertLedgerBalanced($apt);
+    }
+
+    public function test_taksiti_tahsil_edilmis_borc_silinemez_ve_hicbir_sey_silinmez(): void
+    {
+        $apt = $this->site(1);
+        $unit = $this->unit($apt);
+        $this->finance->accrue($unit, $this->fields(9000));
+        $debt = Debt::first();
+        $this->finance->installments($debt, 3, '2026-03-01');
+        $this->finance->collect($unit, $this->cashbox($apt), 1000);
+
+        try {
+            $this->finance->deleteDebt($debt->fresh());
+            $this->fail('Tahsil edilmiş taksitli borç silinmemeli');
+        } catch (FinanceException) {
+        }
+
+        $this->assertSame(4, Debt::count());
+    }
+
     public function test_borcu_olmayan_dairenin_tahsilati_tamamen_avans_olur(): void
     {
         $apt = $this->site(1);
@@ -171,9 +203,9 @@ class FinanceServiceTest extends TestCase
         $this->assertEquals(200, (float) $box->fresh()->balance);
         $this->assertEquals(300, (float) $bank->fresh()->balance);
         $this->assertSame(2, $apt->cashTransactions()->where('sub_type', 'like', 'transfer%')->count());
-        $this->assertSame(2, $apt->auditLogs()->count()); // denetim kayıtları siteye bağlı
-        $this->assertSame(2, $apt->auditLogs()->count()); // denetim kayıtları siteye bağlı
-        $this->assertSame(2, $apt->auditLogs()->count()); // denetim kayıtları siteye bağlı
+        $this->assertSame(2, $apt->auditLogs()->whereIn('action', ['GENERAL_INCOME', 'TRANSFER'])->count()); // denetim kayıtları siteye bağlı
+        $this->assertSame(2, $apt->auditLogs()->whereIn('action', ['GENERAL_INCOME', 'TRANSFER'])->count()); // denetim kayıtları siteye bağlı
+        $this->assertSame(2, $apt->auditLogs()->whereIn('action', ['GENERAL_INCOME', 'TRANSFER'])->count()); // denetim kayıtları siteye bağlı
         $this->assertLedgerBalanced($apt);
     }
 

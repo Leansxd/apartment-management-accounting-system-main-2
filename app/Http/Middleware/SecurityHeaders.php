@@ -34,7 +34,10 @@ class SecurityHeaders
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
         if (! app()->isLocal()) {
-            $response->headers->set('Content-Security-Policy', self::CONTENT_SECURITY_POLICY);
+            // Yanıt kendi (daha katı) kuralını koyduysa korunur: ör. tarayıcıda açılan belge
+            if (! $response->headers->has('Content-Security-Policy')) {
+                $response->headers->set('Content-Security-Policy', self::CONTENT_SECURITY_POLICY);
+            }
         }
         if ($request->secure()) {
             $response->headers->set('Strict-Transport-Security', 'max-age=31536000');

@@ -1,4 +1,6 @@
 <x-layout heading="Belge Arşivi" :subheading="$apartment->name.' · sözleşme, fatura, tutanak'">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     @if ($expiring->isNotEmpty())
         <div role="status" class="rounded-sm border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
             Süresi dolan / dolmak üzere olan belgeler: {{ $expiring->map(fn ($d) => $d->title.' ('.$d->expires_on->format('d.m.Y').')')->implode(', ') }}
@@ -34,12 +36,13 @@
                 <tbody>
                 @forelse ($documents as $d)
                     <tr>
-                        <td class="font-medium">{{ $d->title }}<span class="block text-xs text-slate-400">{{ $d->original_name }}</span></td>
+                        <td class="font-medium">@if ($d->viewableType())<a class="hover:text-brand-600 hover:underline" href="{{ route('site.documents.view', [$apartment, $d]) }}" target="_blank" rel="noopener">{{ $d->title }}</a>@else{{ $d->title }}@endif<span class="block text-xs text-slate-400">{{ $d->original_name }}</span></td>
                         <td><span class="badge badge-gray">{{ $d->category }}</span></td>
                         <td class="whitespace-nowrap {{ $d->expires_on && $d->expires_on->isPast() ? 'font-semibold text-rose-600' : '' }}">{{ $d->expires_on?->format('d.m.Y') ?? '—' }}</td>
                         <td>{{ $d->humanSize() }}</td>
                         <td class="text-xs">{{ $d->uploader?->name }}<span class="block text-slate-400">{{ $d->created_at->format('d.m.Y') }}</span></td>
                         <td class="whitespace-nowrap text-right">
+                            @if ($d->viewableType())<a class="btn btn-secondary btn-sm" href="{{ route('site.documents.view', [$apartment, $d]) }}" target="_blank" rel="noopener">Görüntüle</a>@endif
                             <a class="btn btn-secondary btn-sm" href="{{ route('site.documents.download', [$apartment, $d]) }}">İndir</a>
                             <form method="POST" action="{{ route('site.documents.destroy', [$apartment, $d]) }}" class="inline" onsubmit="return confirm('Belge silinsin mi?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Sil</button></form>
                         </td>

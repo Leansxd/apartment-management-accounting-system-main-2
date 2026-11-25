@@ -3,8 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Debt;
-use App\Models\Meter;
 use App\Services\FinanceException;
+use App\Services\FinanceService;
 use App\Services\MeterBillService;
 use App\Services\ReservationService;
 use App\Support\Money;
@@ -134,7 +134,7 @@ class MeterAndReservationTest extends TestCase
         $res = $svc->book($area, $unit, now()->addDays(2)->toDateString(), '10:00', '11:00');
         $this->assertSame('approved', $res->status);
 
-        app(\App\Services\FinanceService::class)->collect($unit, $this->cashbox($apt), 10000);
+        app(FinanceService::class)->collect($unit, $this->cashbox($apt), 10000);
         $this->expectException(FinanceException::class);
         $svc->cancel($res->fresh());
     }

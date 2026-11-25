@@ -5,10 +5,12 @@
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 @foreach ($items as $key => $type)
                     <div class="card card-body flex flex-col gap-3">
-                        <h3 class="font-semibold text-slate-900">{{ $type[0] }}</h3>
+                        <div>
+                            <h3 class="font-semibold text-slate-900">{{ $type[0] }}</h3>
+                            @if ($type[2] ?? null)<p class="mt-1 text-xs text-slate-500">{{ $type[2] }}</p>@endif
+                        </div>
                         <div class="mt-auto flex gap-2">
                             <a class="btn btn-primary btn-sm" href="{{ route('site.reports.show', [$apartment, $key]) }}">Görüntüle</a>
-                            <a class="btn btn-secondary btn-sm" href="{{ route('site.reports.show', [$apartment, $key, 'format' => 'csv']) }}">Excel (CSV)</a>
                         </div>
                     </div>
                 @endforeach

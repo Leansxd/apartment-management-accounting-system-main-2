@@ -8,7 +8,6 @@
     $switchRoute = $site && $is('site.*') && count($route->parameterNames()) === 1 && request()->isMethod('get') ? $routeName : 'site.dashboard';
     $siteRoute = fn (string $name) => $currentSite ? route($name, $currentSite) : route('sites.index');
     $initial = mb_strtoupper(mb_substr($user->name, 0, 1));
-    $classicDashboard = $currentSite && $is('dashboard', 'site.dashboard') && ! request()->filled('q');
     $menuHelp = [
         'Yapı, Daire & Sakinler' => 'Bloklarınızı, dairelerinizi ve sakinleri buradan tanımlarsınız. Sisteme ilk başlarken gelmeniz gereken yer burası.',
         'Tahakkuk, Aidat & Sayaç' => 'Aidatı ve diğer borçları dairelere yazarsınız. Gecikme zammı ile sayaç faturaları da burada yönetilir.',
@@ -87,6 +86,16 @@
             ['Site Ayarları & Yöneticiler', 'site.settings', 'settings', false],
         ]],
     ];
+
+    // Kullanıcının bu sitede açamayacağı modüller menüde listelenmez
+    if ($currentSite) {
+        $railMenus = collect($railMenus)->map(function (array $menu) use ($currentSite, $user) {
+            $menu[4] = array_values(array_filter($menu[4], fn (array $item) => ($item[3] ?? false)
+                || \App\Support\SitePermissions::allows($currentSite, $user, $item[1], false)));
+
+            return $menu;
+        })->filter(fn (array $menu) => $menu[4] !== [])->values()->all();
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="tr" class="h-full dark">
@@ -100,22 +109,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
         (function () {
-            var hud = localStorage.getItem('hud-mode') === 'classic' ? 'classic' : 'modern';
-            var t = hud === 'classic' ? (localStorage.getItem('classic-theme') || 'light') : (localStorage.getItem('theme') || 'dark');
+            var t = localStorage.getItem('theme') || 'dark';
             document.documentElement.classList.remove('dark', 'light');
             document.documentElement.classList.add(t === 'light' ? 'light' : 'dark');
-            document.documentElement.setAttribute('data-hud', hud);
-            document.documentElement.setAttribute('data-accent', localStorage.getItem('classic-accent') || 'teal');
             document.documentElement.setAttribute('data-motion', localStorage.getItem('motion') || 'on');
+            // Menü konumu (solda / üstte) sayfa çizilmeden uygulanır, kayma olmaz
+            document.documentElement.setAttribute('data-nav', localStorage.getItem('nav') === 'top' ? 'top' : 'side');
         })();
     </script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-[#09090b] font-sans text-[#fafafa] antialiased selection:bg-white/15">
 
-@include('components.dash.classic-nav')
-
-<aside id="app-sidebar" class="hud-modern-only no-print rail-sidebar px-2">
+<aside id="app-sidebar" class="no-print rail-sidebar px-2">
     <div class="flex min-h-0 flex-1 flex-col gap-1.5">
         <div class="flex items-center justify-between px-1.5 pb-1">
             <a href="{{ route('dashboard') }}" class="flex items-center gap-3" aria-label="Leans">
@@ -264,17 +270,47 @@
 @include('components.dash.setup-guide')
 
 <div id="app-shell" class="min-h-screen pl-[64px] transition-[padding] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]">
-    <header class="hud-modern-only no-print flex items-center justify-end gap-2 px-5 pt-4 sm:px-8">
+    {{-- Üst çubuk. "Menü konumu: Üstte" seçilince menüler ve sağdaki düğmeler tek, sabit bir çubukta birleşir (CSS: #app-topbar) --}}
+    <div id="app-topbar" class="no-print">
+    <nav id="top-nav" class="top-nav" aria-label="Üst menü">
+        <div class="flex flex-wrap items-center gap-0.5 [&_.tab-pill]:gap-1.5 [&_.tab-pill]:px-2 2xl:[&_.tab-pill]:px-2.5">
+            <a href="{{ route('dashboard') }}" class="mr-2 flex items-center gap-2" aria-label="Leans">
+                <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-[#09090b]">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                </span>
+                <span class="hidden text-[14px] font-extrabold tracking-tight text-white 2xl:inline">leans<span class="text-orange-500">.</span></span>
+            </a>
+            <span class="mx-1 hidden h-5 w-px bg-[#26262c] md:block"></span>
+            @foreach ($railLinks as [$label, $icon, $href, $active])
+                <a href="{{ $href }}" class="tab-pill {{ $active ? 'active' : '' }}" title="{{ $label }}" aria-label="{{ $label }}" @if ($active) aria-current="page" @endif><x-icon :name="$icon" :size="15" /><span class="hidden 2xl:inline">{{ $label === 'Genel Portföy Panosu' ? 'Portföy' : 'Pano' }}</span></a>
+            @endforeach
+            @foreach ($railMenus as [$groupLabel, $icon, $primaryRoute, $active, $items])
+                <details class="dropdown relative">
+                    <summary class="tab-pill {{ $active ? 'active' : '' }}" title="{{ $groupLabel }}"><x-icon :name="$icon" :size="15" /><span>{{ \Illuminate\Support\Str::before($groupLabel, ',') }}</span><x-icon name="chevron-down" :size="13" /></summary>
+                    <div class="absolute left-0 top-full z-50 mt-2 w-72 rounded-2xl border border-[#242428] bg-[#141416] p-1.5 shadow-[0_20px_48px_-12px_rgba(0,0,0,0.65)]">
+                        <p class="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">{{ $groupLabel }}</p>
+                        @foreach ($items as $item)
+                            @php
+                                [$itemLabel, $rName, $subIcon] = $item;
+                                $subActive = $is($rName.'*');
+                                $itemHref = ($item[3] ?? false) ? route($rName) : $siteRoute($rName);
+                            @endphp
+                            <a href="{{ $itemHref }}" class="drop-item {{ $subActive ? 'active' : '' }}" @if ($subActive) aria-current="page" @endif>
+                                <span class="flex items-center gap-2"><x-icon :name="$subIcon" :size="14" class="text-[#71717a]" />{{ $itemLabel }}</span>
+                            </a>
+                        @endforeach
+                    </div>
+                </details>
+            @endforeach
+        </div>
+    </nav>
+
+    <header class="no-print flex items-center justify-end gap-2 px-5 pt-4 sm:px-8">
         @include('components.dash.setup-button', ['buttonClass' => 'select-btn'])
 
-        <button type="button" {{ tour(40, 'Arayüzü değiştir', 'Modern ve Klasik görünüm arasında geçiş yapar. Verileriniz değişmez, yalnızca ekran düzeni değişir.') }} data-toggle="hud" class="select-btn" title="HUD Görünümünü Değiştir (Modern / Klasik)" aria-label="HUD modu değiştir">
-            <x-icon name="layout-dashboard" :size="14" class="text-teal-500" />
-            <span data-hud-label>Klasik HUD</span>
-        </button>
-
         <button type="button" data-toggle="theme" class="select-btn" title="Açık / Koyu Tema Değiştir" aria-label="Tema değiştir">
-            <x-icon name="sun" :size="14" data-theme-sun class="text-amber-400" />
-            <x-icon name="moon" :size="14" data-theme-moon class="hidden text-indigo-500" />
+            <span data-theme-sun><x-icon name="sun" :size="14" class="text-amber-400" /></span>
+            <span data-theme-moon class="hidden"><x-icon name="moon" :size="14" class="text-indigo-500" /></span>
             <span data-theme-label>Açık Tema</span>
         </button>
 
@@ -287,15 +323,15 @@
             <x-icon name="settings" :size="15" />
         </button>
 
-        <a href="{{ $siteRoute('site.dashboard') }}" class="icon-btn" title="Site Panosu" aria-label="Site Panosu">
+        <a href="{{ $siteRoute('site.dashboard') }}" class="icon-btn" title="Site Panosu" aria-label="Site Panosu" data-site-dashboard-shortcut>
             <x-icon name="clock" :size="15" />
         </a>
 
         <details class="dropdown relative">
             <summary class="icon-btn" aria-label="Ara" title="Ara"><x-icon name="search" :size="15" /></summary>
-            <form method="GET" action="{{ route('dashboard') }}" class="absolute right-0 top-11 z-50 w-72 rounded-2xl border border-[#242428] bg-[#141416] p-2 shadow-2xl">
-                <label class="sr-only" for="top-q">Kullanıcı ara</label>
-                <input id="top-q" name="q" class="input" placeholder="Kullanıcı, e-posta veya telefon…" autocomplete="off">
+            <form method="GET" action="{{ $currentSite ? route('site.search', $currentSite) : route('dashboard') }}" class="absolute right-0 top-11 z-50 w-72 rounded-2xl border border-[#242428] bg-[#141416] p-2 shadow-2xl">
+                <label class="sr-only" for="top-q">Ara</label>
+                <input id="top-q" name="q" class="input" placeholder="{{ $currentSite ? 'Daire, sakin, borç, talep…' : 'Kullanıcı, e-posta veya telefon…' }}" autocomplete="off">
             </form>
         </details>
 
@@ -316,7 +352,13 @@
                     <p class="text-[11px] text-[#71717a]">{{ $user->is_super_admin ? 'Süper admin' : 'Yönetici' }}</p>
                 </div>
                 <a href="{{ route('users.show', $user) }}" class="drop-item mt-1">Profilim</a>
+                <a href="{{ route('account.password') }}" class="drop-item">Şifremi değiştir</a>
+                <a href="{{ route('account.two-factor') }}" class="drop-item">İki adımlı doğrulama</a>
                 @if ($currentSite)<a href="{{ route('site.settings', $currentSite) }}" class="drop-item">Site ayarları</a>@endif
+                @can('super-admin')
+                    <a href="{{ route('system.audit') }}" class="drop-item">Sistem kayıtları</a>
+                    <a href="{{ route('system.backups') }}" class="drop-item">Yedekler</a>
+                @endcan
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
                     <button class="drop-item w-full text-rose-400 hover:text-rose-300">Çıkış yap</button>
@@ -324,11 +366,12 @@
             </div>
         </details>
     </header>
+    </div>
 
     <main class="min-w-0">
         <div class="print-full mx-auto max-w-[1600px] space-y-4 px-5 pb-10 pt-2 sm:px-8" data-stagger-root>
             @if ($heading)
-                <div @class(['reveal-up flex flex-wrap items-center justify-between gap-4 pb-1', 'hud-modern-only' => $classicDashboard]) style="--stagger: 0">
+                <div class="reveal-up flex flex-wrap items-center justify-between gap-4 pb-1" style="--stagger: 0" data-page-heading>
                     <div>
                         <h1 class="text-[24px] font-bold leading-tight tracking-tight text-white">{{ $heading }}</h1>
                         <p class="mt-1 text-[13px] text-[#71717a]">{{ $subheading ?? 'Tahakkuk eden gelirleri, tahsilatları ve bekleyen bakiyeleri takip edin.' }}</p>
@@ -353,12 +396,7 @@
                 </div>
             @endif
 
-            @if ($classicDashboard)
-                <div class="hud-classic-only">@include('components.dash.classic-hud', ['apartment' => $currentSite])</div>
-                <div class="hud-modern-only space-y-4">{{ $slot }}</div>
-            @else
-                {{ $slot }}
-            @endif
+            {{ $slot }}
         </div>
     </main>
 </div>

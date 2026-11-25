@@ -7,6 +7,7 @@ use App\Models\Expense;
 use App\Models\Staff;
 use App\Models\User;
 use App\Support\Money;
+use Carbon\CarbonImmutable;
 
 /**
  * Personel maaş bordrosu. Her aktif personel için dönem başına bir gider kaydı üretilir (onay bekler);
@@ -14,9 +15,7 @@ use App\Support\Money;
  */
 class PayrollService
 {
-    public function __construct(private FinanceService $finance)
-    {
-    }
+    public function __construct(private FinanceService $finance) {}
 
     /** @return array{created: int, skipped: int} */
     public function generate(Apartment $apartment, string $period, ?User $by = null): array
@@ -24,12 +23,14 @@ class PayrollService
         if (! preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period)) {
             throw new FinanceException('Dönem YYYY-AA biçiminde olmalıdır.');
         }
+        $this->finance->assertPeriodOpen($apartment, CarbonImmutable::parse("{$period}-01")->endOfMonth());
         $category = $apartment->categories()->firstOrCreate(['name' => 'Personel', 'type' => 'expense']);
         $result = ['created' => 0, 'skipped' => 0];
 
         foreach ($apartment->staff()->where('status', 'Aktif')->where('salary', '>', 0)->get() as $staff) {
             if ($apartment->expenses()->where('staff_id', $staff->id)->where('period', $period)->exists()) {
                 $result['skipped']++;
+
                 continue;
             }
             $cents = Money::cents($staff->salary);

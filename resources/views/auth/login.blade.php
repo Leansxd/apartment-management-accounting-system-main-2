@@ -43,4 +43,6 @@
 
         <button type="submit" class="auth-submit mt-3">Giriş yap</button>
     </form>
+
+    <p class="mt-5 text-center text-[13px] text-slate-500">Sakin misiniz? <a href="{{ route('portal.join') }}" class="font-semibold text-slate-900 hover:text-orange-600">Davet kodumla hesap aç</a></p>
 </x-auth-layout>

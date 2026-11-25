@@ -1,4 +1,6 @@
 <x-layout heading="Kayıtlı Kullanıcılar" :subheading="auth()->user()->is_super_admin ? 'Tüm kullanıcılar' : 'Sitelerinize bağlı sakinler ve yöneticiler'">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     @can('super-admin')
         <details class="panel card" @if($errors->any()) open @endif>
             <summary class="card-head"><span class="card-title">+ Kullanıcı oluştur</span></summary>
@@ -53,7 +55,7 @@
                         <td>@if ($u->is_super_admin)<span class="badge badge-blue">Süper Admin</span>@elseif ($u->isAdmin())<span class="badge badge-green">Yönetici</span>@else<span class="badge badge-gray">Sakin</span>@endif</td>
                         <td>
                             @forelse ($u->memberships as $membership)
-                                <span class="block">{{ $membership->apartment->name }} · {{ $membership->unit->label() }}</span>
+                                <span class="block">{{ $membership->apartment->name }} · <x-unit-link :unit="$membership->unit" /></span>
                             @empty
                                 <span class="text-slate-500">{{ $u->isAdmin() ? '—' : 'Bağlı değil' }}</span>
                             @endforelse

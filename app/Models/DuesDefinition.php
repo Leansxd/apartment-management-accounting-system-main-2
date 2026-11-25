@@ -12,7 +12,7 @@ class DuesDefinition extends Model
 
     protected function casts(): array
     {
-        return ['amount' => 'decimal:2', 'is_active' => 'boolean', 'last_run_at' => 'datetime'];
+        return ['amount' => 'decimal:2', 'is_active' => 'boolean', 'last_run_at' => 'datetime', 'waived_unit_periods' => 'array'];
     }
 
     public function category(): BelongsTo { return $this->belongsTo(TransactionCategory::class); }
