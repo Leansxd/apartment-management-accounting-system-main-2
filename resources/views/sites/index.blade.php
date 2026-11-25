@@ -26,6 +26,13 @@
                     <span><b>{{ $a->units_count }}</b> daire</span>
                     <span><b>{{ $a->members_count }}</b> sakin</span>
                 </div>
+                @php $site = $siteStats[$a->id]; @endphp
+                <dl class="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-xs">
+                    <div><dt class="text-slate-500">Tahsilat</dt><dd class="mt-0.5 font-semibold tabular-nums">%{{ number_format($site['rate'], 1, ',', '.') }}</dd></div>
+                    <div><dt class="text-slate-500">Gecikmiş</dt><dd class="mt-0.5 truncate font-semibold tabular-nums {{ $site['overdue'] > 0 ? 'metric-bad' : '' }}">{{ tl($site['overdue']) }}</dd></div>
+                    <div><dt class="text-slate-500">Kasa</dt><dd class="mt-0.5 truncate font-semibold tabular-nums">{{ tl($site['cash']) }}</dd></div>
+                </dl>
+                <p class="mt-2 text-xs text-slate-500">{{ $site['open_tickets'] }} açık talep</p>
             </a>
         @empty
             <p class="text-sm text-slate-500">Henüz site yok.</p>

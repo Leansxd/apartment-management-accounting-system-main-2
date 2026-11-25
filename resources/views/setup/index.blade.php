@@ -10,7 +10,7 @@
     $wizardSteps = ['start' => 'Başlangıç', 'db' => 'Veritabanı', 'admin' => 'Yönetici', 'site' => 'İlk Site', 'review' => 'Kurulum'];
 @endphp
 <!DOCTYPE html>
-<html lang="tr" class="h-full light" data-hud="classic" data-accent="teal" data-motion="on">
+<html lang="tr" class="h-full light" data-motion="on">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -23,15 +23,15 @@
 <body class="min-h-screen font-sans antialiased">
 <main class="mx-auto flex min-h-screen max-w-4xl flex-col justify-center gap-6 px-4 py-10">
     <header class="flex items-center gap-3">
-        <span class="ch-logo">L</span>
+        <span class="setup-logo">L</span>
         <div>
-            <h1 class="ch-ink text-xl font-bold tracking-tight">Leans Kurulum Sihirbazı</h1>
-            <p class="ch-muted text-[13px]">Birkaç adımda sistemi hazırlayalım. Her adımda ne yapacağınızı göstereceğiz.</p>
+            <h1 class="setup-ink text-xl font-bold tracking-tight">Leans Kurulum Sihirbazı</h1>
+            <p class="setup-muted text-[13px]">Birkaç adımda sistemi hazırlayalım. Her adımda ne yapacağınızı göstereceğiz.</p>
         </div>
     </header>
 
-    <div class="ch-panel grid overflow-hidden md:grid-cols-[210px_1fr]">
-        <nav class="border-b border-[var(--ch-line)] bg-[var(--ch-subtle)] p-4 md:border-b-0 md:border-r" aria-label="Kurulum adımları">
+    <div class="setup-panel grid overflow-hidden md:grid-cols-[210px_1fr]">
+        <nav class="border-b border-[var(--ui-line)] bg-[var(--ui-subtle)] p-4 md:border-b-0 md:border-r" aria-label="Kurulum adımları">
             <ol class="flex flex-wrap gap-1 md:flex-col">
                 @foreach ($wizardSteps as $key => $label)
                     <li class="setup-nav" data-setup-nav="{{ $key }}"><span class="setup-dot">{{ $loop->iteration }}</span>{{ $label }}</li>
@@ -51,14 +51,14 @@
             <div class="flex-1 space-y-4">
                 <section data-setup-panel="start" class="space-y-4">
                     <div>
-                        <h2 class="ch-ink text-base font-semibold">Hoş geldiniz</h2>
-                        <p class="ch-muted mt-0.5 text-[13px]">Önce sunucunun uygun olduğunu kontrol ediyoruz.</p>
+                        <h2 class="setup-ink text-base font-semibold">Hoş geldiniz</h2>
+                        <p class="setup-muted mt-0.5 text-[13px]">Önce sunucunun uygun olduğunu kontrol ediyoruz.</p>
                     </div>
-                    <ul {{ tour(1, 'Sistem kontrolü', 'Sistemin çalışması için gereken parçalar burada denetlenir. Hepsinin yanında yeşil işaret olmalı. Kırmızı varsa önce onu düzeltmeniz gerekir.') }} class="space-y-1.5 rounded-xl border border-[var(--ch-line)] p-3 text-[13px]">
+                    <ul {{ tour(1, 'Sistem kontrolü', 'Sistemin çalışması için gereken parçalar burada denetlenir. Hepsinin yanında yeşil işaret olmalı. Kırmızı varsa önce onu düzeltmeniz gerekir.') }} class="space-y-1.5 rounded-xl border border-[var(--ui-line)] p-3 text-[13px]">
                         @foreach ($requirements as [$requirementLabel, $requirementOk])
                             <li class="flex items-center gap-2">
                                 <span @class(['flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold', 'bg-emerald-100 text-emerald-700' => $requirementOk, 'bg-rose-100 text-rose-700' => ! $requirementOk])>{{ $requirementOk ? '✓' : '!' }}</span>
-                                <span class="ch-ink">{{ $requirementLabel }}</span>
+                                <span class="setup-ink">{{ $requirementLabel }}</span>
                             </li>
                         @endforeach
                     </ul>
@@ -79,8 +79,8 @@
 
                 <section data-setup-panel="db" class="space-y-4" hidden>
                     <div>
-                        <h2 class="ch-ink text-base font-semibold">Veritabanı</h2>
-                        <p class="ch-muted mt-0.5 text-[13px]">Tüm kayıtların saklanacağı yer.</p>
+                        <h2 class="setup-ink text-base font-semibold">Veritabanı</h2>
+                        <p class="setup-muted mt-0.5 text-[13px]">Tüm kayıtların saklanacağı yer.</p>
                     </div>
                     <div {{ tour(10, 'Veritabanı türü', 'SQLite ayrı bir program istemez, tek bilgisayarda ve küçük kullanımda en kolayıdır. Birden fazla kişinin aynı anda çalışacağı canlı sistemde MySQL seçin.') }}>
                         <label class="label" for="db_connection">Veritabanı türü</label>
@@ -100,8 +100,8 @@
 
                 <section data-setup-panel="admin" data-clean-only class="space-y-4" hidden>
                     <div>
-                        <h2 class="ch-ink text-base font-semibold">Yönetici hesabı</h2>
-                        <p class="ch-muted mt-0.5 text-[13px]">Sisteme tam yetkiyle girecek ilk kişi siz olacaksınız.</p>
+                        <h2 class="setup-ink text-base font-semibold">Yönetici hesabı</h2>
+                        <p class="setup-muted mt-0.5 text-[13px]">Sisteme tam yetkiyle girecek ilk kişi siz olacaksınız.</p>
                     </div>
                     <div {{ tour(20, 'Ad soyad', 'Panelde ve işlem kayıtlarında görünecek adınız. Yapılan her finans işlemi bu adla kayda geçer.') }}><label class="label" for="name">Ad soyad</label><input id="name" name="name" class="input" value="{{ old('name') }}" required maxlength="120" autocomplete="name"></div>
                     <div {{ tour(21, 'E-posta', 'Panele giriş yaparken kullanacağınız adres.') }}><label class="label" for="email">E-posta</label><input id="email" name="email" type="email" class="input" value="{{ old('email') }}" required maxlength="120" autocomplete="username"></div>
@@ -113,8 +113,8 @@
 
                 <section data-setup-panel="site" data-clean-only class="space-y-4" hidden>
                     <div>
-                        <h2 class="ch-ink text-base font-semibold">İlk site</h2>
-                        <p class="ch-muted mt-0.5 text-[13px]">Yöneteceğiniz apartman veya siteyi tanımlayın. Sonra başkalarını da ekleyebilirsiniz.</p>
+                        <h2 class="setup-ink text-base font-semibold">İlk site</h2>
+                        <p class="setup-muted mt-0.5 text-[13px]">Yöneteceğiniz apartman veya siteyi tanımlayın. Sonra başkalarını da ekleyebilirsiniz.</p>
                     </div>
                     <div {{ tour(30, 'Site adı', 'Makbuz, rapor ve bildirimlerde görünecek ad. Örneğin Çınar Sitesi.') }}><label class="label" for="site_name">Site adı</label><input id="site_name" name="site_name" class="input" value="{{ old('site_name') }}" required maxlength="120"></div>
                     <div class="grid gap-3 sm:grid-cols-2">
@@ -125,24 +125,24 @@
 
                 <section data-setup-panel="review" class="space-y-4" hidden>
                     <div>
-                        <h2 class="ch-ink text-base font-semibold">Kuruluma hazır</h2>
-                        <p class="ch-muted mt-0.5 text-[13px]">Bilgileri kontrol edin. Kurulum birkaç saniye sürer.</p>
+                        <h2 class="setup-ink text-base font-semibold">Kuruluma hazır</h2>
+                        <p class="setup-muted mt-0.5 text-[13px]">Bilgileri kontrol edin. Kurulum birkaç saniye sürer.</p>
                     </div>
-                    <dl {{ tour(40, 'Son kontrol', 'Seçimlerinizin özeti. Yanlış bir şey görürseniz Geri düğmesiyle dönüp düzeltebilirsiniz.') }} class="divide-y divide-[var(--ch-line)] rounded-xl border border-[var(--ch-line)] px-4 text-[13px]">
-                        <div class="flex justify-between gap-3 py-2"><dt class="ch-muted">Kurulum türü</dt><dd class="ch-ink font-medium" data-summary="mode"></dd></div>
-                        <div class="flex justify-between gap-3 py-2"><dt class="ch-muted">Veritabanı</dt><dd class="ch-ink font-medium" data-summary="db_connection"></dd></div>
-                        <div class="flex justify-between gap-3 py-2" data-summary-clean><dt class="ch-muted">Yönetici</dt><dd class="ch-ink font-medium" data-summary="email"></dd></div>
-                        <div class="flex justify-between gap-3 py-2" data-summary-clean><dt class="ch-muted">İlk site</dt><dd class="ch-ink font-medium" data-summary="site_name"></dd></div>
+                    <dl {{ tour(40, 'Son kontrol', 'Seçimlerinizin özeti. Yanlış bir şey görürseniz Geri düğmesiyle dönüp düzeltebilirsiniz.') }} class="divide-y divide-[var(--ui-line)] rounded-xl border border-[var(--ui-line)] px-4 text-[13px]">
+                        <div class="flex justify-between gap-3 py-2"><dt class="setup-muted">Kurulum türü</dt><dd class="setup-ink font-medium" data-summary="mode"></dd></div>
+                        <div class="flex justify-between gap-3 py-2"><dt class="setup-muted">Veritabanı</dt><dd class="setup-ink font-medium" data-summary="db_connection"></dd></div>
+                        <div class="flex justify-between gap-3 py-2" data-summary-clean><dt class="setup-muted">Yönetici</dt><dd class="setup-ink font-medium" data-summary="email"></dd></div>
+                        <div class="flex justify-between gap-3 py-2" data-summary-clean><dt class="setup-muted">İlk site</dt><dd class="setup-ink font-medium" data-summary="site_name"></dd></div>
                     </dl>
                 </section>
             </div>
 
-            <div class="mt-6 flex items-center justify-between gap-3 border-t border-[var(--ch-line)] pt-4">
-                <button type="button" class="ch-link" data-setup-guide data-tour-once {{ tour(90, 'Anlatımı tekrar aç', 'Bir adımı yeniden dinlemek isterseniz bu bağlantıya tıklayın.') }}>Bu adımı anlat</button>
+            <div class="mt-6 flex items-center justify-between gap-3 border-t border-[var(--ui-line)] pt-4">
+                <button type="button" class="setup-link" data-setup-guide data-tour-once {{ tour(90, 'Anlatımı tekrar aç', 'Bir adımı yeniden dinlemek isterseniz bu bağlantıya tıklayın.') }}>Bu adımı anlat</button>
                 <div class="flex gap-2">
-                    <button type="button" class="ch-btn" data-setup-back data-tour-once hidden {{ tour(91, 'Geri', 'Bir önceki adıma döner. Yazdıklarınız silinmez.') }}>Geri</button>
-                    <button type="button" class="ch-btn-solid !w-auto px-5" data-setup-next data-tour-once @disabled(! $canContinue) {{ tour(92, 'İleri', 'Bu adımdaki bilgiler doğruysa sonraki adıma geçer. Eksik alan varsa uyarır.') }}>İleri</button>
-                    <button type="submit" class="ch-btn-solid !w-auto px-5" data-setup-submit hidden {{ tour(93, 'Kurulumu başlat', 'Tabloları oluşturur, hesabınızı ve sitenizi açar, sizi panele alır. Ardından paneldeki düğmeleri de tek tek tanıtacağız.') }}>Kurulumu Başlat</button>
+                    <button type="button" class="setup-btn" data-setup-back data-tour-once hidden {{ tour(91, 'Geri', 'Bir önceki adıma döner. Yazdıklarınız silinmez.') }}>Geri</button>
+                    <button type="button" class="setup-btn-solid !w-auto px-5" data-setup-next data-tour-once @disabled(! $canContinue) {{ tour(92, 'İleri', 'Bu adımdaki bilgiler doğruysa sonraki adıma geçer. Eksik alan varsa uyarır.') }}>İleri</button>
+                    <button type="submit" class="setup-btn-solid !w-auto px-5" data-setup-submit hidden {{ tour(93, 'Kurulumu başlat', 'Tabloları oluşturur, hesabınızı ve sitenizi açar, sizi panele alır. Ardından paneldeki düğmeleri de tek tek tanıtacağız.') }}>Kurulumu Başlat</button>
                 </div>
             </div>
         </form>

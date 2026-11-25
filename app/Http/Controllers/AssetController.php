@@ -10,9 +10,12 @@ use Illuminate\Validation\Rule;
 /** Demirbaş kaydı ve amortisman takibi */
 class AssetController extends Controller
 {
-    public function index(Apartment $apartment)
+    public function index(Request $request, Apartment $apartment)
     {
-        $assets = $apartment->assets()->with('vendor')->orderByRaw("CASE status WHEN 'active' THEN 0 ELSE 1 END")->orderBy('name')->get();
+        $assets = $apartment->assets()->with('vendor')
+            ->when($request->query('category'), fn ($q, $category) => $q->where('category', $category))
+            ->when(in_array($request->query('status'), ['active', 'disposed'], true), fn ($q) => $q->where('status', $request->query('status')))
+            ->orderByRaw("CASE status WHEN 'active' THEN 0 ELSE 1 END")->orderBy('name')->get();
         $active = $assets->where('status', 'active');
 
         return view('site.ops.assets', [

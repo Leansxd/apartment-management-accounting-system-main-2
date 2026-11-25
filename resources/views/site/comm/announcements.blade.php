@@ -1,4 +1,6 @@
 <x-layout heading="Duyurular" :subheading="$apartment->name.' · aktif duyurular mobil uygulamada görünür'">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <section class="card">
         <div class="card-head"><h2 class="card-title">Yeni duyuru</h2></div>
         <form method="POST" action="{{ route('site.announcements.store', $apartment) }}" class="card-body space-y-3">
@@ -23,6 +25,14 @@
                     </div>
                     <div class="flex gap-1">
                         <form method="POST" action="{{ route('site.announcements.toggle', [$apartment, $a]) }}">@csrf @method('PATCH')<button class="btn btn-secondary btn-sm">{{ $a->is_active ? 'Yayından kaldır' : 'Yayına al' }}</button></form>
+                        <x-dash.edit-panel :action="route('site.announcements.update', [$apartment, $a])" width="w-[28rem]">
+                            <div><label class="label" for="an-title-{{ $a->id }}">Başlık *</label><input class="input" id="an-title-{{ $a->id }}" name="title" maxlength="150" value="{{ $a->title }}" required></div>
+                            <div><label class="label" for="an-body-{{ $a->id }}">İçerik *</label><textarea class="input" id="an-body-{{ $a->id }}" name="content" rows="4" maxlength="5000" required>{{ $a->content }}</textarea></div>
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <div><label class="label" for="an-pri-{{ $a->id }}">Öncelik</label><select class="input" id="an-pri-{{ $a->id }}" name="priority"><option value="normal" @selected($a->priority === 'normal')>Normal</option><option value="high" @selected($a->priority === 'high')>Önemli</option></select></div>
+                                <div><label class="label" for="an-exp-{{ $a->id }}">Bitiş</label><input class="input" id="an-exp-{{ $a->id }}" type="date" name="expires_on" value="{{ $a->expires_on?->toDateString() }}"></div>
+                            </div>
+                        </x-dash.edit-panel>
                         <form method="POST" action="{{ route('site.announcements.destroy', [$apartment, $a]) }}" onsubmit="return confirm('Duyuru silinsin mi?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Sil</button></form>
                     </div>
                 </div>

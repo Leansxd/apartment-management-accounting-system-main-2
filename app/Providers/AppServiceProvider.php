@@ -4,13 +4,19 @@ namespace App\Providers;
 
 use App\Models\Apartment;
 use App\Models\User;
-use App\Services\DashboardService;
+use App\Services\AuditTrail;
 use App\Services\InstallService;
+use App\Services\ModuleStatsService;
+use App\Support\SitePermissions;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
@@ -36,9 +42,16 @@ class AppServiceProvider extends ServiceProvider
 
         Paginator::useTailwind();
 
+        AuditTrail::watchModels();
+        Event::listen(Login::class, fn (Login $event) => app(AuditTrail::class)->logAuthentication('LOGIN', $event->user));
+        Event::listen(Logout::class, fn (Logout $event) => app(AuditTrail::class)->logAuthentication('LOGOUT', $event->user));
+        Event::listen(PasswordReset::class, fn (PasswordReset $event) => app(AuditTrail::class)->logAuthentication('PASSWORD_RESET', $event->user));
+
         // Panelde bir sitenin verisine erişim: süper admin, site sahibi veya yönetici listesindekiler
         Gate::define('manage', fn (User $user, Apartment $apartment) => $apartment->isManagedBy($user));
         Gate::define('super-admin', fn (User $user) => $user->is_super_admin);
+        // Rota adıyla modül izni: @can('site-access', [$apartment, 'site.debts.index'])
+        Gate::define('site-access', fn (User $user, Apartment $apartment, string $route) => SitePermissions::allows($apartment, $user, $route, false));
         // TC kimlik no ve davet kodu: yalnızca sakinleri yöneten rol görür
         Gate::define('view-member-secrets', fn (User $user, Apartment $apartment) => $apartment->roleOf($user) === 'manager');
 
@@ -50,6 +63,11 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('login', fn (Request $request) => [
             Limit::perMinute(5)->by(mb_strtolower((string) $request->input('email')).'|'.$request->ip()),
             Limit::perMinute(20)->by('login-ip:'.$request->ip()),
+        ]);
+        // Doğrulama kodu tahmini: şifresi doğrulanmış hesap başına sayılır, yeniden girişle sıfırlanmaz
+        RateLimiter::for('two-factor', fn (Request $request) => [
+            Limit::perMinute(5)->by('two-factor:'.$request->session()->get('two_factor.user_id').'|'.$request->ip()),
+            Limit::perMinute(20)->by('two-factor-ip:'.$request->ip()),
         ]);
         RateLimiter::for('register', fn (Request $request) => Limit::perHour(10)->by('register-ip:'.$request->ip()));
         // Davet kodu tahminini engeller. Sayaç sunucuda tutulur; kullanıcı kendisi sıfırlayamaz.
@@ -74,8 +92,9 @@ class AppServiceProvider extends ServiceProvider
             $view->with(['sites' => $sites, 'site' => $site, 'currentSite' => $current, 'openTickets' => $openTickets]);
         });
 
-        View::composer('components.dash.classic-hud', function ($view) {
-            $view->with(app(DashboardService::class)->classicHud($view->getData()['apartment']));
+        View::composer(array_keys(ModuleStatsService::VIEWS), function ($view) {
+            $data = $view->getData();
+            $view->with('moduleSummary', app(ModuleStatsService::class)->{ModuleStatsService::VIEWS[$view->name()]}($data['apartment'], $data));
         });
     }
 }

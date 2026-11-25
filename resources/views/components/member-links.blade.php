@@ -1,0 +1,3 @@
+@props(['members', 'empty' => '—', 'withType' => false])
+{{-- Dairenin sakinlerini virgülle ayrılmış profil bağlantıları olarak yazar; withType ile yanına malik / kiracı yazılır (isimle aynı satırda kalır). --}}
+@forelse ($members as $member)@unless ($loop->first), @endunless{{ '' }}@if ($withType)<span class="whitespace-nowrap">@endif<x-member-link :member="$member" />@if ($withType) <span class="text-slate-500">({{ \App\Models\Member::TYPES[$member->type] ?? $member->type }})</span></span>@endif{{ '' }}@empty{{ $empty }}@endforelse

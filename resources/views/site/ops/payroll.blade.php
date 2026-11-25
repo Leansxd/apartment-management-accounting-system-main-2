@@ -1,13 +1,15 @@
 <x-layout heading="Personel Bordrosu" :subheading="$apartment->name.' · maaş giderleri'">
     <x-slot:actions>
         <form method="GET" class="flex items-end gap-2">
-            <div><label class="label" for="period">Dönem</label><input class="input" id="period" type="month" name="period" value="{{ $period }}" onchange="this.form.submit()"></div>
+            <div><label class="label" for="period">Dönem</label><input class="input" id="period" type="month" name="period" value="{{ $period }}" data-autosubmit></div>
         </form>
         <form method="POST" action="{{ route('site.payroll.generate', $apartment) }}" class="flex items-end">
             @csrf<input type="hidden" name="period" value="{{ $period }}">
             <button class="btn btn-primary">{{ $period }} bordrosunu oluştur</button>
         </form>
     </x-slot:actions>
+
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
 
     <div class="grid gap-4 sm:grid-cols-3">
         <div class="stat"><p class="stat-label">Oluşturulacak maaş</p><p class="stat-value">{{ tl($payable) }}</p></div>
@@ -32,7 +34,8 @@
                                 <form method="POST" action="{{ route('site.expenses.approve', [$apartment, $e]) }}" class="inline-flex gap-1">
                                     @csrf
                                     <label class="sr-only" for="pay-{{ $e->id }}">Kasa</label>
-                                    <select class="input !w-auto !py-1 text-xs" id="pay-{{ $e->id }}" name="cashbox_id">@foreach ($cashboxes as $c)<option value="{{ $c->id }}">{{ $c->name }} ({{ tl($c->balance) }})</option>@endforeach</select>
+                                    <select class="input !w-auto !py-1 text-xs" id="pay-{{ $e->id }}" name="cashbox_id" data-expense-cashbox>@foreach ($cashboxes as $c)<option value="{{ $c->id }}" data-currency="{{ $c->currency }}" data-rate="{{ $rateSuggestions[$c->currency]['rate'] ?? '' }}">{{ $c->labelWithCurrency() }} ({{ $c->formattedBalance() }})</option>@endforeach</select>
+                                    <input class="input !w-24 !py-1 text-xs" type="number" step="0.000001" min="0.000001" name="exchange_rate" placeholder="Kur (₺)" aria-label="Kur" data-expense-rate hidden disabled>
                                     <button class="btn btn-primary btn-sm">Öde</button>
                                 </form>
                             @endif

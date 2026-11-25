@@ -92,11 +92,9 @@
             <div class="relative z-10 flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h2 class="text-[15px] font-semibold text-white">Portföy Gelir ve Tahakkuk Özeti</h2>
-                    <p class="mt-0.5 text-xs text-[#71717a]">Tüm sitelerde seçilen dönemde tahsil edilen ve tahakkuk eden tutarlar.</p>
+                    <p class="mt-0.5 text-xs text-[#71717a]">Tüm sitelerde günlük tahsilat, tahakkuk ve gider akışı.</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-4">
-                    <span class="inline-flex items-center gap-1.5 text-xs text-[#a1a1aa]"><i class="h-2 w-2 rounded-full bg-emerald-500"></i>Tahsilat</span>
-                    <span class="inline-flex items-center gap-1.5 text-xs text-[#a1a1aa]"><i class="h-2 w-2 rounded-full bg-white"></i>Tahakkuk</span>
                     <div class="inline-flex items-center rounded-full border border-[#242428] bg-[#0c0c0e] p-0.5 text-[11px]" data-chart-switcher>
                         <button type="button" data-chart-mode="bar" class="rounded-full bg-[#1f1f23] px-3 py-1 font-medium text-white transition-all duration-200">30 Gün</button>
                         <button type="button" data-chart-mode="month" class="rounded-full px-3 py-1 font-medium text-[#71717a] transition-all duration-200 hover:text-white">12 Ay</button>
@@ -140,6 +138,8 @@
             </div>
         </section>
     </div>
+
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
 
     <section style="--stagger: 6" class="spotlight-card reveal-up rounded-[24px] border border-[#1f1f23] bg-[#141416] p-6">
         <div class="relative z-10 flex flex-wrap items-center justify-between gap-4 border-b border-[#1f1f23] pb-4">

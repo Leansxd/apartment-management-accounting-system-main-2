@@ -2,7 +2,10 @@
     <x-slot:actions>
         <a class="btn btn-primary" href="{{ route('site.collections.index', [$apartment, 'unit_id' => $member->unit_id]) }}">Tahsilat al</a>
         <a class="btn btn-secondary" href="{{ route('site.statements', [$apartment, 'unit_id' => $member->unit_id]) }}">Hesap ekstresi</a>
+        <a class="btn btn-secondary" href="{{ route('site.units.show', [$apartment, $member->unit_id]) }}">Daire detayı</a>
     </x-slot:actions>
+
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
 
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="stat"><p class="stat-label">Açık Borç</p><p class="stat-value text-rose-600">{{ tl($statement['open_debt']) }}</p></div>
@@ -56,39 +59,23 @@
                         <button class="btn btn-danger w-full">Geçmişe taşı</button>
                     </form>
                 </details>
+                <details class="panel rounded-xl border border-red-100">
+                    <summary class="btn btn-secondary w-full">Yanlış kayıt — kalıcı sil</summary>
+                    <div class="space-y-2 p-3 text-xs text-slate-500">
+                        @if ($canPurge)
+                            <p>Yanlış daireye ya da yanlışlıkla eklenen kayıt içindir. Kayıt geçmişte de görünmez ve geri alınamaz. Daireden ayrılan biri için "Daireden ayrıldı / devir"i kullanın.</p>
+                            <form method="POST" action="{{ route('site.members.purge', [$apartment, $member]) }}" onsubmit="return confirm(@js($member->full_name.' kaydı kalıcı olarak silinsin mi? Bu işlem geri alınamaz.'))">
+                                @csrf @method('DELETE')
+                                <button class="btn btn-danger w-full">Kalıcı olarak sil</button>
+                            </form>
+                        @else
+                            <p>Bu kişi tahsilatlarda ödeyen olarak geçtiği için kalıcı silinemez; makbuzlarda kimin ödediği kaybolurdu. "Daireden ayrıldı / devir" ile geçmişe taşıyabilirsiniz.</p>
+                        @endif
+                    </div>
+                </details>
             </div>
         </section>
     </div>
 
-    <section class="card">
-        <div class="card-head"><h2 class="card-title">Borçlar</h2></div>
-        <div class="overflow-x-auto">
-            <table class="table">
-                <thead><tr><th>Açıklama</th><th>Vade</th><th class="num">Tutar</th><th class="num">Ödenen</th><th class="num">Kalan</th><th>Durum</th></tr></thead>
-                <tbody>
-                @forelse ($debts as $d)
-                    <tr><td>{{ $d->description }}</td><td>{{ $d->due_date->format('d.m.Y') }}</td><td class="num">{{ tl($d->amount) }}</td><td class="num">{{ tl($d->paid_amount) }}</td><td class="num font-semibold">{{ tl($d->remaining_amount) }}</td><td><x-debt-status :debt="$d" /></td></tr>
-                @empty
-                    <tr><td colspan="6" class="text-center text-slate-500">Borç kaydı yok.</td></tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="card">
-        <div class="card-head"><h2 class="card-title">Ödemeler</h2></div>
-        <div class="overflow-x-auto">
-            <table class="table">
-                <thead><tr><th>Tarih</th><th>Açıklama</th><th class="num">Tutar</th><th class="num">Borca</th><th class="num">Avansa</th></tr></thead>
-                <tbody>
-                @forelse ($payments as $p)
-                    <tr><td>{{ $p->created_at->format('d.m.Y H:i') }}</td><td>{{ $p->description }}</td><td class="num font-semibold">{{ tl($p->amount) }}</td><td class="num">{{ tl($p->applied_to_debts) }}</td><td class="num">{{ tl($p->to_advance) }}</td></tr>
-                @empty
-                    <tr><td colspan="5" class="text-center text-slate-500">Ödeme yok.</td></tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
-    </section>
+    @include('site._unit-debts-payments')
 </x-layout>

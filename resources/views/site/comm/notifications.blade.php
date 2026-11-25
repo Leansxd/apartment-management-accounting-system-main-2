@@ -1,4 +1,6 @@
 <x-layout heading="Bildirim Gönder" :subheading="$apartment->name.' · bildirimler mobil uygulamanın bildirim kutusunda görünür'">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <section class="card">
         <div class="card-head"><h2 class="card-title">Yeni bildirim</h2></div>
         <form method="POST" action="{{ route('site.notifications.store', $apartment) }}" class="card-body space-y-3">
@@ -29,7 +31,7 @@
                 @forelse ($notifications as $n)
                     <tr><td class="whitespace-nowrap">{{ $n->created_at->format('d.m.Y H:i') }}</td>
                         <td><span class="font-medium">{{ $n->title }}</span><span class="block text-xs text-slate-500">{{ \Illuminate\Support\Str::limit($n->body, 120) }}</span></td>
-                        <td>{{ $n->unit?->label() ?? 'Tüm site' }}</td><td class="num">{{ $n->readers_count }}</td></tr>
+                        <td><x-unit-link :unit="$n->unit" fallback="Tüm site" /></td><td class="num">{{ $n->readers_count }}</td></tr>
                 @empty
                     <tr><td colspan="4" class="text-center text-slate-500">Bildirim yok.</td></tr>
                 @endforelse

@@ -7,15 +7,15 @@
         @forelse ($transactions as $t)
             <tr class="{{ $t->isReversed() ? 'opacity-50' : '' }}">
                 <td class="whitespace-nowrap text-slate-500">{{ $t->created_at->format('d.m.Y H:i') }}</td>
-                <td class="{{ $t->isReversed() ? 'line-through' : '' }}">{{ $t->description }}@if ($t->isReversed())<span class="badge badge-red ml-1 no-underline">İptal</span>@endif</td>
-                <td>{{ $t->unit?->label() ?? '—' }}</td>
+                <td class="{{ $t->isReversed() ? 'line-through' : '' }}">{{ $t->description }}@if ($t->payment_group)<span class="badge badge-blue ml-1 no-underline">Parçalı</span>@endif @if ($t->isReversed())<span class="badge badge-red ml-1 no-underline">İptal</span>@endif</td>
+                <td><x-unit-link :unit="$t->unit" />@if ($t->payer_member_id && $t->relationLoaded('payer'))<span class="block text-xs text-slate-500">Ödeyen: <x-member-link :member="$t->payer" /></span>@endif</td>
                 <td>{{ $t->cashbox?->name }}</td>
                 <td><span class="badge {{ $t->type === 'income' ? 'badge-green' : 'badge-red' }}">{{ \App\Models\CashTransaction::SUB_TYPES[$t->sub_type] ?? $t->sub_type }}</span></td>
-                <td class="num font-semibold {{ $t->type === 'income' ? 'text-emerald-600' : 'text-rose-600' }}">{{ $t->type === 'income' ? '+' : '−' }}{{ tl($t->amount) }}</td>
+                <td class="num font-semibold {{ $t->type === 'income' ? 'text-emerald-600' : 'text-rose-600' }}">{{ $t->type === 'income' ? '+' : '−' }}{{ tl($t->amount) }}@if ($t->originalLabel())<span class="block text-[11px] font-normal text-slate-500">{{ $t->originalLabel() }}</span>@endif</td>
                 @if ($actions)
                     <td class="whitespace-nowrap text-right">
                         <a class="btn btn-secondary btn-sm" href="{{ route('site.transactions.receipt', [$apartment, $t]) }}">Makbuz</a>
-                        @if (! $t->isReversed() && $t->sub_type !== 'reversal' && ! $t->isTransfer())
+                        @if (! $t->isReversed() && $t->sub_type !== 'reversal' && ! $t->isTransfer() && ! $t->isFxDifference())
                             <details class="relative inline-block text-left">
                                 <summary class="btn btn-danger btn-sm">İptal</summary>
                                 <form method="POST" action="{{ route('site.transactions.reverse', [$apartment, $t]) }}" class="absolute right-0 z-10 mt-1 w-72 card card-body space-y-2 shadow-lg">

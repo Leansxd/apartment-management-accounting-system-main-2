@@ -1,0 +1,3 @@
+@props(['unit' => null, 'fallback' => '—'])
+{{-- Daire adını panelde daire detayına bağlar; silinmiş dairede düz metin, daire yoksa fallback yazar. --}}
+@if (! $unit){{ $fallback }}@elseif ($unit->trashed()){{ $unit->label() }}@else<a href="{{ route('site.units.show', [$unit->apartment_id, $unit]) }}" {{ $attributes->merge(['class' => 'hover:text-brand-600 hover:underline']) }}>{{ $unit->label() }}</a>@endif

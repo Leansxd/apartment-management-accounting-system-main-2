@@ -1,4 +1,6 @@
 <x-layout heading="Avans & Mahsup" :subheading="$apartment->name.' · toplam avans '.tl($total)">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <section class="card">
         <div class="card-head"><h2 class="card-title">Avansı olan daireler</h2>
             <span class="text-xs text-slate-500">Fazla ödemeler yeni borca otomatik mahsup edilir; buradan elle mahsup veya iade yapabilirsiniz.</span></div>
@@ -8,7 +10,7 @@
                 <tbody>
                 @forelse ($units as $u)
                     <tr>
-                        <td class="font-medium">{{ $u->label() }}</td>
+                        <td class="font-medium"><x-unit-link :unit="$u" /></td>
                         <td class="num font-semibold text-emerald-600">{{ tl($u->credit_balance) }}</td>
                         <td class="num">{{ tl($openByUnit[$u->id] ?? 0) }}</td>
                         <td class="flex flex-wrap items-center gap-2">

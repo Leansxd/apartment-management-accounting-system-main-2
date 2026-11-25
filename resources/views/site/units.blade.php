@@ -1,4 +1,6 @@
 <x-layout heading="Bloklar & Daireler" :subheading="$apartment->name.' · '.$units->count().' daire'">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <div class="grid gap-6 lg:grid-cols-3">
         <section class="card">
             <div class="card-head"><h2 class="card-title">Bloklar</h2></div>
@@ -6,9 +8,14 @@
                 @forelse ($blocks as $block)
                     <li class="flex items-center justify-between px-5 py-2.5 text-sm">
                         <span><b>{{ $block->name }}</b> Blok <span class="text-slate-400">· {{ $block->units_count }} daire</span></span>
+                        <span class="flex gap-1">
+                        <x-dash.edit-panel :action="route('site.blocks.update', [$apartment, $block])" width="w-64">
+                            <div><label class="label" for="bl-{{ $block->id }}">Blok adı *</label><input class="input uppercase" id="bl-{{ $block->id }}" name="name" maxlength="30" value="{{ $block->name }}" required></div>
+                        </x-dash.edit-panel>
                         <form method="POST" action="{{ route('site.blocks.destroy', [$apartment, $block]) }}" onsubmit="return confirm('Blok silinsin mi?')">
                             @csrf @method('DELETE')<button class="btn btn-danger btn-sm" aria-label="{{ $block->name }} bloğunu sil">Sil</button>
                         </form>
+                        </span>
                     </li>
                 @empty
                     <li class="px-5 py-3 text-sm text-slate-500">Blok yok.</li>
@@ -58,36 +65,49 @@
         </section>
     </div>
 
+    <x-dash.filters :fields="[['name' => 'block_id', 'label' => 'Blok', 'type' => 'select', 'options' => $blocks->pluck('name', 'id')->all()], ['name' => 'status', 'label' => 'Durum', 'type' => 'select', 'options' => ['Dolu' => 'Dolu', 'Boş' => 'Boş']], ['name' => 'usage_type', 'label' => 'Kullanım', 'type' => 'select', 'options' => ['Konut' => 'Konut', 'İşyeri' => 'İşyeri', 'Depo' => 'Depo', 'Otopark' => 'Otopark']], ['name' => 'debtors', 'label' => 'Yalnızca borçlular', 'type' => 'check']]" />
+
     <section class="card">
         <div class="card-head"><h2 class="card-title">Daireler</h2></div>
         <div class="overflow-x-auto">
             <table class="table">
-                <thead><tr><th>Daire</th><th>Kat</th><th>Kullanım</th><th>Durum</th><th class="num">m²</th><th>Sakinler</th><th class="num">Avans</th><th></th></tr></thead>
+                <thead><tr><th>Daire</th><th>Kat</th><th>Kullanım</th><th>Durum</th><th class="num">m²</th><th>Sakinler</th><th class="num">Açık borç</th><th class="num">Avans</th><th></th></tr></thead>
                 <tbody>
                 @forelse ($units as $u)
                     <tr>
-                        <td class="font-medium">{{ $u->label() }}</td>
+                        <td class="whitespace-nowrap font-medium"><x-unit-link :unit="$u" /></td>
                         <td>{{ $u->floor ?: '—' }}</td>
                         <td>{{ $u->usage_type }}</td>
-                        <td><span class="badge {{ $u->status === 'Dolu' ? 'badge-green' : 'badge-gray' }}">{{ $u->status }}</span></td>
+                        <td><span class="badge {{ $u->status === 'Dolu' ? 'badge-green' : 'badge-gray' }}" title="{{ $u->status === 'Dolu' ? 'Daire kullanılıyor' : 'Dairede oturan / kullanan yok (malik kayıtlı olabilir)' }}">{{ $u->status }}</span></td>
                         <td class="num">{{ $u->gross_area ? number_format($u->gross_area, 2, ',', '.') : '—' }}</td>
-                        <td class="text-xs">{{ $u->members->pluck('full_name')->implode(', ') ?: '—' }}</td>
+                        <td class="text-xs"><x-member-links :members="$u->members" :with-type="true" /></td>
+                        <td class="num {{ ($debtByUnit[$u->id] ?? 0) > 0 ? 'metric-bad' : '' }}">{{ ($debtByUnit[$u->id] ?? 0) > 0 ? tl($debtByUnit[$u->id]) : '—' }}</td>
                         <td class="num">{{ (float) $u->credit_balance ? tl($u->credit_balance) : '—' }}</td>
                         <td class="text-right whitespace-nowrap">
-                            <details class="inline-block text-left relative">
-                                <summary class="btn btn-secondary btn-sm">Düzenle</summary>
-                                <form method="POST" action="{{ route('site.units.update', [$apartment, $u]) }}" class="absolute right-0 z-10 mt-1 w-72 card card-body space-y-2 shadow-lg">
-                                    @csrf @method('PUT')
-                                    <select class="input" name="block_id" aria-label="Blok">@foreach ($blocks as $b)<option value="{{ $b->id }}" @selected($b->id === $u->block_id)>{{ $b->name }}</option>@endforeach</select>
-                                    <input class="input" name="unit_no" value="{{ $u->unit_no }}" aria-label="Daire no" required>
-                                    <input class="input" name="floor" value="{{ $u->floor }}" placeholder="Kat" aria-label="Kat">
-                                    <input class="input" name="gross_area" type="number" step="0.01" value="{{ $u->gross_area }}" placeholder="m²" aria-label="m²">
-                                    <input class="input" name="land_share" type="number" step="0.0001" value="{{ $u->land_share }}" placeholder="Arsa payı" aria-label="Arsa payı">
-                                    <select class="input" name="usage_type" aria-label="Kullanım">@foreach (['Konut', 'İşyeri', 'Depo', 'Otopark'] as $o)<option @selected($o === $u->usage_type)>{{ $o }}</option>@endforeach</select>
-                                    <select class="input" name="status" aria-label="Durum">@foreach (['Dolu', 'Boş'] as $o)<option @selected($o === $u->status)>{{ $o }}</option>@endforeach</select>
-                                    <button class="btn btn-primary w-full">Kaydet</button>
-                                </form>
-                            </details>
+                            <x-dash.edit-panel :action="route('site.units.update', [$apartment, $u])" width="w-[32rem]">
+                                <div>
+                                    <p class="card-title">{{ $u->label() }} dairesini düzenle</p>
+                                    <p class="text-xs text-slate-500">Sakinler: <x-member-links :members="$u->members" :with-type="true" empty="kayıtlı sakin yok" /></p>
+                                </div>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <div><label class="label" for="un-block-{{ $u->id }}">Blok *</label>
+                                        <select class="input" id="un-block-{{ $u->id }}" name="block_id">@foreach ($blocks as $b)<option value="{{ $b->id }}" @selected($b->id === $u->block_id)>{{ $b->name }}</option>@endforeach</select></div>
+                                    <div><label class="label" for="un-no-{{ $u->id }}">Daire no *</label>
+                                        <input class="input" id="un-no-{{ $u->id }}" name="unit_no" value="{{ $u->unit_no }}" maxlength="20" required></div>
+                                    <div><label class="label" for="un-floor-{{ $u->id }}">Kat</label>
+                                        <input class="input" id="un-floor-{{ $u->id }}" name="floor" value="{{ $u->floor }}" placeholder="ör. 3"></div>
+                                    <div><label class="label" for="un-usage-{{ $u->id }}">Kullanım</label>
+                                        <select class="input" id="un-usage-{{ $u->id }}" name="usage_type">@foreach (['Konut', 'İşyeri', 'Depo', 'Otopark'] as $o)<option @selected($o === $u->usage_type)>{{ $o }}</option>@endforeach</select></div>
+                                    <div><label class="label" for="un-area-{{ $u->id }}">Brüt alan (m²)</label>
+                                        <input class="input" id="un-area-{{ $u->id }}" name="gross_area" type="number" step="0.01" min="0" value="{{ $u->gross_area }}" placeholder="ör. 120"></div>
+                                    <div><label class="label" for="un-share-{{ $u->id }}">Arsa payı</label>
+                                        <input class="input" id="un-share-{{ $u->id }}" name="land_share" type="number" step="0.0001" min="0" value="{{ $u->land_share }}" placeholder="ör. 0,0313">
+                                        <p class="mt-0.5 text-[11px] text-slate-400">Arsa payına göre aidatta kullanılır</p></div>
+                                    <div class="sm:col-span-2"><label class="label" for="un-status-{{ $u->id }}">Durum</label>
+                                        <select class="input" id="un-status-{{ $u->id }}" name="status">@foreach (['Dolu' => 'Dolu — dairede oturan / kullanan var', 'Boş' => 'Boş — oturan / kullanan yok'] as $value => $text)<option value="{{ $value }}" @selected($value === $u->status)>{{ $text }}</option>@endforeach</select>
+                                        <p class="mt-0.5 text-[11px] text-slate-400">Malik dairede oturmaya başlarsa "Dolu" seçin. Kiracı eklenince otomatik "Dolu" olur.</p></div>
+                                </div>
+                            </x-dash.edit-panel>
                             <form method="POST" action="{{ route('site.units.destroy', [$apartment, $u]) }}" class="inline" onsubmit="return confirm(@js($u->label().' silinsin mi?'))">
                                 @csrf @method('DELETE')<button class="btn btn-danger btn-sm">Sil</button>
                             </form>
@@ -108,7 +128,14 @@
                 @forelse ($groups as $g)
                     <li class="flex justify-between py-2">
                         <span><b>{{ $g->name }}</b> <span class="text-slate-400">· {{ $g->units_count }} daire</span> <span class="block text-xs text-slate-500">{{ $g->details }}</span></span>
-                        <form method="POST" action="{{ route('site.groups.destroy', [$apartment, $g]) }}" onsubmit="return confirm('Grup silinsin mi?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Sil</button></form>
+                        <span class="flex gap-1">
+                            <x-dash.edit-panel :action="route('site.groups.update', [$apartment, $g])">
+                                <div><label class="label" for="gr-n-{{ $g->id }}">Grup adı *</label><input class="input" id="gr-n-{{ $g->id }}" name="name" maxlength="60" value="{{ $g->name }}" required></div>
+                                <div><label class="label" for="gr-d-{{ $g->id }}">Açıklama</label><input class="input" id="gr-d-{{ $g->id }}" name="details" maxlength="255" value="{{ $g->details }}"></div>
+                                <div><label class="label" for="gr-u-{{ $g->id }}">Daireler</label><select class="input h-40" id="gr-u-{{ $g->id }}" name="unit_ids[]" multiple>@foreach ($allUnits as $unit)<option value="{{ $unit->id }}" @selected($g->units->contains('id', $unit->id))>{{ $unit->label() }}</option>@endforeach</select></div>
+                            </x-dash.edit-panel>
+                            <form method="POST" action="{{ route('site.groups.destroy', [$apartment, $g]) }}" onsubmit="return confirm('Grup silinsin mi?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Sil</button></form>
+                        </span>
                     </li>
                 @empty
                     <li class="py-2 text-slate-500">Grup yok.</li>

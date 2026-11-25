@@ -1,6 +1,8 @@
 <x-layout heading="Emlak Portföyü" subheading="Satılık ve kiralık ilanlar">
     <x-slot:actions><a class="btn btn-primary" href="{{ route('properties.create') }}">+ Yeni ilan</a></x-slot:actions>
 
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <form method="GET" class="flex flex-wrap gap-2">
         <label class="sr-only" for="q">Ara</label>
         <input class="input !w-auto" id="q" name="q" value="{{ request('q') }}" placeholder="Başlık veya konum">

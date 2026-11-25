@@ -7,6 +7,9 @@ use App\Models\Block;
 use App\Models\Debt;
 use App\Models\Unit;
 use App\Models\UnitGroup;
+use App\Services\AuditTrail;
+use App\Services\ModuleStatsService;
+use App\Services\ReportService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -14,14 +17,36 @@ use Illuminate\Validation\ValidationException;
 /** Bloklar, daireler (üniteler) ve daire grupları */
 class StructureController extends Controller
 {
-    public function index(Apartment $apartment)
+    /** Daire detayı: sakinler, bakiye, borçlar ve ödemeler */
+    public function showUnit(Apartment $apartment, Unit $unit, ReportService $reports, ModuleStatsService $stats)
+    {
+        $unit->load('block', 'members');
+
+        return view('site.unit', [
+            'apartment' => $apartment,
+            'unit' => $unit,
+            'statement' => $reports->statement($unit),
+            'moduleSummary' => $stats->unit($unit),
+            'debts' => $unit->debts()->latest('due_date')->get(),
+            'payments' => $unit->cashTransactions()->effective()->where('type', 'income')->with('payer')->latest('id')->limit(30)->get(),
+        ]);
+    }
+
+    public function index(Request $request, Apartment $apartment)
     {
         return view('site.units', [
             'apartment' => $apartment,
             'blocks' => $apartment->blocks()->withCount('units')->orderBy('name')->get(),
-            'units' => $apartment->units()->with(['block', 'members'])->get()
+            'debtByUnit' => $apartment->debts()->where('status', Debt::PENDING)->groupBy('unit_id')->selectRaw('unit_id, SUM(remaining_amount) total')->pluck('total', 'unit_id'),
+            'units' => $apartment->units()->with(['block', 'members'])
+                ->when($request->integer('block_id'), fn ($q, $block) => $q->where('block_id', $block))
+                ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
+                ->when($request->query('usage_type'), fn ($q, $usage) => $q->where('usage_type', $usage))
+                ->when($request->boolean('debtors'), fn ($q) => $q->whereHas('debts', fn ($d) => $d->where('status', Debt::PENDING)))
+                ->get()
                 ->sortBy(fn (Unit $u) => [$u->block?->name, (int) $u->unit_no, $u->unit_no]),
-            'groups' => $apartment->unitGroups()->withCount('units')->get(),
+            'groups' => $apartment->unitGroups()->with('units:id')->withCount('units')->get(),
+            'allUnits' => $apartment->units()->with('block')->get()->sortBy(fn (Unit $u) => [$u->block?->name, (int) $u->unit_no, $u->unit_no]),
         ]);
     }
 
@@ -32,6 +57,15 @@ class StructureController extends Controller
         $apartment->blocks()->create(['name' => mb_strtoupper($data['name'])]);
 
         return back()->with('status', 'Blok eklendi.');
+    }
+
+    public function updateBlock(Request $request, Apartment $apartment, Block $block)
+    {
+        $data = $request->validate(['name' => ['required', 'string', 'max:30',
+            Rule::unique('blocks')->where('apartment_id', $apartment->id)->whereNull('deleted_at')->ignore($block->id)]]);
+        $block->update(['name' => mb_strtoupper($data['name'])]);
+
+        return back()->with('status', 'Blok güncellendi.');
     }
 
     public function destroyBlock(Apartment $apartment, Block $block)
@@ -113,6 +147,25 @@ class StructureController extends Controller
         $group->units()->sync($data['unit_ids'] ?? []);
 
         return back()->with('status', 'Grup oluşturuldu.');
+    }
+
+    public function updateGroup(Request $request, Apartment $apartment, UnitGroup $unitGroup, AuditTrail $audit)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:60'],
+            'details' => ['nullable', 'string', 'max:255'],
+            'unit_ids' => ['array'],
+            'unit_ids.*' => [Rule::exists('units', 'id')->where('apartment_id', $apartment->id)],
+        ]);
+        $unitGroup->update(['name' => $data['name'], 'details' => $data['details'] ?? null]);
+        $changes = $unitGroup->units()->sync($data['unit_ids'] ?? []);
+        if ($changes['attached'] || $changes['detached']) {
+            $audit->log($apartment->id, 'UPDATE_UNIT_GROUP_MEMBERS', 'STRUCTURE', "unit_group:{$unitGroup->id}", [
+                'attached' => $changes['attached'], 'detached' => $changes['detached'],
+            ]);
+        }
+
+        return back()->with('status', 'Grup güncellendi.');
     }
 
     public function destroyGroup(Apartment $apartment, UnitGroup $unitGroup)

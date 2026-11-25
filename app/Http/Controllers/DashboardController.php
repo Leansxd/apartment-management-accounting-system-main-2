@@ -4,15 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Apartment;
 use App\Services\DashboardService;
+use App\Services\ModuleStatsService;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function __construct(private DashboardService $dashboard)
-    {
-    }
+    public function __construct(private DashboardService $dashboard) {}
 
-    public function index(Request $request)
+    public function index(Request $request, ModuleStatsService $stats)
     {
         $user = $request->user();
         $range = array_key_exists((string) $request->query('range'), DashboardService::RANGES) ? $request->query('range') : 'month';
@@ -23,6 +22,7 @@ class DashboardController extends Controller
         return view('dashboard', $this->dashboard->overview($user, $range) + [
             'users' => $this->dashboard->users($user, $tab, $search ?: null, $sort)->limit(8)->get(),
             'tab' => $tab, 'sort' => $sort, 'search' => $search,
+            'moduleSummary' => $stats->portfolio($user),
         ]);
     }
 

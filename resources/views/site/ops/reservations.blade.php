@@ -1,4 +1,8 @@
 <x-layout heading="Ortak Alan Rezervasyonu" :subheading="$apartment->name.($pending ? ' · '.$pending.' onay bekliyor' : '')">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
+    <x-dash.filters :fields="[['name' => 'common_area_id', 'label' => 'Alan', 'type' => 'select', 'options' => $areas->pluck('name', 'id')->all()], ['name' => 'from', 'label' => 'Başlangıç', 'type' => 'date'], ['name' => 'to', 'label' => 'Bitiş', 'type' => 'date']]" :keep="['status']" />
+
     <div class="grid gap-6 lg:grid-cols-3">
         <section class="card">
             <div class="card-head"><h2 class="card-title">Rezervasyon oluştur</h2></div>
@@ -31,7 +35,7 @@
                         <tr>
                             <td class="whitespace-nowrap">{{ $r->date->format('d.m.Y') }}<span class="block text-xs text-slate-400">{{ $r->start_time }}–{{ $r->end_time }}</span></td>
                             <td>{{ $r->area->name }}@if ($r->user)<span class="block text-xs text-slate-400">{{ $r->user->name }}</span>@endif</td>
-                            <td>{{ $r->unit->label() }}</td>
+                            <td><x-unit-link :unit="$r->unit" /></td>
                             <td class="num">{{ (float) $r->fee ? tl($r->fee) : '—' }}</td>
                             <td><span class="badge {{ ['approved' => 'badge-green', 'pending' => 'badge-amber', 'rejected' => 'badge-red', 'cancelled' => 'badge-gray'][$r->status] }}">{{ \App\Models\Reservation::STATUSES[$r->status] }}</span></td>
                             <td class="whitespace-nowrap text-right">

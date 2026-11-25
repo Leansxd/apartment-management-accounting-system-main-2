@@ -5,6 +5,8 @@
         <a class="btn btn-secondary" href="{{ route('site.expenses.index', $apartment) }}">Gider gir</a>
     </x-slot:actions>
 
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="stat"><p class="stat-label">Mevcut Likidite</p><p class="stat-value text-brand-600">{{ tl($summary['balance']) }}</p><p class="text-xs text-slate-500 mt-1">Kasa & banka toplamı</p></div>
         <div class="stat"><p class="stat-label">Gelecek Tahsilat</p><p class="stat-value">{{ tl($summary['receivables']) }}</p><p class="text-xs text-rose-600 mt-1">Gecikmiş: {{ tl($summary['overdue']) }}</p></div>
@@ -18,7 +20,7 @@
             <ul class="divide-y divide-slate-100">
                 @foreach ($cashboxes as $c)
                     <li class="flex justify-between px-5 py-2.5 text-sm"><span>{{ $c->name }} <span class="text-xs text-slate-400">{{ \App\Models\Cashbox::TYPES[$c->type] }}</span></span>
-                        <span class="font-semibold tabular-nums {{ $c->balance < 0 ? 'text-rose-600' : '' }}">{{ tl($c->balance) }}</span></li>
+                        <span class="font-semibold tabular-nums {{ $c->balance < 0 ? 'text-rose-600' : '' }}">{{ tl($c->balance) }}@if ($c->isForeign())<span class="block text-[11px] font-normal text-slate-500">{{ $c->formattedBalance() }}</span>@endif</span></li>
                 @endforeach
             </ul>
         </section>

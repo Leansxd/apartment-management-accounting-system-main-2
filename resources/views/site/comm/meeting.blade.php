@@ -4,7 +4,7 @@
         <button type="button" class="btn btn-primary" onclick="window.print()">Hazirun cetveli yazdır</button>
     </x-slot:actions>
 
-    <div class="grid gap-4 sm:grid-cols-3">
+    <div class="grid gap-4 sm:grid-cols-3" data-print-stats>
         <div class="stat"><p class="stat-label">Katılan daire</p><p class="stat-value">{{ $quorum['count'] }} / {{ $quorum['total'] }}</p></div>
         <div class="stat"><p class="stat-label">Arsa payı</p><p class="stat-value">@if ($quorum['share_used']){{ number_format($quorum['share'], 4, ',', '.') }} / {{ number_format($quorum['total_share'], 4, ',', '.') }}@else — @endif</p></div>
         <div class="stat {{ $quorum['ok'] ? 'bg-brand-50/60' : 'bg-rose-50/60' }}"><p class="stat-label">Toplantı yeter sayısı</p>
@@ -13,6 +13,8 @@
     </div>
 
     <section class="card">
+        <x-report.print-header :apartment="$apartment" title="Hazirun Cetveli"
+            :note="$meeting->title.' · '.(\App\Models\Meeting::TYPES[$meeting->type] ?? '').' · '.$meeting->meets_at->format('d.m.Y H:i').($meeting->location ? ' · '.$meeting->location : '')" />
         <div class="card-head"><h2 class="card-title">Hazirun (katılım) cetveli</h2><span class="text-xs text-slate-500 no-print">Katılan daireleri işaretleyin; vekil ile gelenler için "Vekil" kutusunu kullanın.</span></div>
         <form method="POST" action="{{ route('site.meetings.attendance', [$apartment, $meeting]) }}">
             @csrf
@@ -24,8 +26,8 @@
                         @php $a = $attendance->get($u->id); $owner = $u->members->firstWhere('type', 'owner') ?? $u->members->first(); @endphp
                         <tr>
                             <td class="no-print"><input type="checkbox" name="present[]" value="{{ $u->id }}" class="rounded border-slate-300" aria-label="{{ $u->label() }} katıldı" @checked($a)></td>
-                            <td class="font-medium">{{ $u->label() }}</td>
-                            <td>{{ $owner?->full_name ?? '—' }}</td>
+                            <td class="font-medium"><x-unit-link :unit="$u" /></td>
+                            <td><x-member-link :member="$owner" /></td>
                             <td class="num">{{ $u->land_share ? number_format($u->land_share, 4, ',', '.') : '—' }}</td>
                             <td><label class="sr-only" for="n-{{ $u->id }}">Katılımcı adı</label><input class="input !py-1 text-xs no-print" id="n-{{ $u->id }}" name="name[{{ $u->id }}]" value="{{ $a?->attendee_name }}" placeholder="{{ $owner?->full_name }}"><span class="hidden print:inline">{{ $a?->attendee_name ?: ($a ? $owner?->full_name : '') }}</span></td>
                             <td><input type="checkbox" name="proxy[{{ $u->id }}]" value="1" class="rounded border-slate-300 no-print" aria-label="{{ $u->label() }} vekil" @checked($a?->is_proxy)><span class="hidden print:inline">{{ $a?->is_proxy ? 'Vekil' : '' }}</span></td>
@@ -82,4 +84,5 @@
     @if ($meeting->agenda)
         <section class="card"><div class="card-head"><h2 class="card-title">Gündem</h2></div><p class="card-body whitespace-pre-line text-sm">{{ $meeting->agenda }}</p></section>
     @endif
+    <x-report.signatures :roles="['Toplantı Başkanı', 'Yazman', 'Oy Toplayıcı']" />
 </x-layout>

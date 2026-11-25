@@ -3,13 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Apartment;
+use App\Services\ExchangeRateService;
 use App\Services\PayrollService;
 use Illuminate\Http\Request;
 
 /** Personel maaş bordrosu: dönem için gider kayıtları üretir; ödeme Gider Yönetimi'nden kasa seçilerek yapılır. */
 class PayrollController extends Controller
 {
-    public function index(Request $request, Apartment $apartment, PayrollService $payroll)
+    public function index(Request $request, Apartment $apartment, PayrollService $payroll, ExchangeRateService $rates)
     {
         $period = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', (string) $request->query('period')) ? $request->query('period') : now()->format('Y-m');
         $rows = collect($payroll->statusFor($apartment, $period));
@@ -18,7 +19,8 @@ class PayrollController extends Controller
             'apartment' => $apartment,
             'period' => $period,
             'rows' => $rows,
-            'cashboxes' => $apartment->cashboxes()->orderBy('name')->get(),
+            'cashboxes' => $apartment->activeCashboxes()->orderBy('name')->get(),
+            'rateSuggestions' => $rates->suggestions($apartment),
             'payable' => (float) $rows->sum(fn ($r) => $r['expense'] === null && $r['staff']->status === 'Aktif' ? $r['staff']->salary : 0),
             'total' => (float) $rows->sum(fn ($r) => $r['expense']?->total_amount ?? 0),
             'paid' => (float) $rows->sum(fn ($r) => $r['expense']?->status === 'approved' ? $r['expense']->total_amount : 0),

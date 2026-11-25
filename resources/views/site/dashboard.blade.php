@@ -144,11 +144,9 @@
                 <div class="relative z-10 flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <h2 class="text-[15px] font-semibold text-white">Gelir ve Tahakkuk Özeti</h2>
-                        <p class="mt-0.5 text-xs text-[#71717a]">Seçilen dönemde günlük tahsilat/tahakkuk akışı ve 12 aylık karşılaştırma.</p>
+                        <p class="mt-0.5 text-xs text-[#71717a]">Günlük tahsilat, tahakkuk ve gider akışı.</p>
                     </div>
                     <div class="flex flex-wrap items-center gap-4">
-                        <span class="inline-flex items-center gap-1.5 text-xs text-[#a1a1aa]"><i class="h-2 w-2 rounded-full bg-emerald-500"></i>Tahsilat</span>
-                        <span class="inline-flex items-center gap-1.5 text-xs text-[#a1a1aa]"><i class="h-2 w-2 rounded-full bg-white"></i>Tahakkuk / Gider</span>
                         <div class="inline-flex items-center rounded-full border border-[#242428] bg-[#0c0c0e] p-0.5 text-[11px]" data-chart-switcher>
                             <button type="button" data-chart-mode="bar" class="rounded-full bg-[#1f1f23] px-3 py-1 font-medium text-white transition-all duration-200">30 Gün</button>
                             <button type="button" data-chart-mode="month" class="rounded-full px-3 py-1 font-medium text-[#71717a] transition-all duration-200 hover:text-white">12 Ay</button>
@@ -222,7 +220,7 @@
                                     <span class="block text-[10px] text-[#71717a]">{{ \App\Models\Cashbox::TYPES[$c->type] ?? $c->type }}</span>
                                 </span>
                             </span>
-                            <span class="font-semibold text-emerald-400 tabular-nums">{{ tl($c->balance) }}</span>
+                            <span class="text-right font-semibold text-emerald-400 tabular-nums">{{ tl($c->balance) }}@if ($c->isForeign())<span class="block text-[10px] font-normal text-[#71717a]">{{ $c->formattedBalance() }}</span>@endif</span>
                         </a>
                     @empty
                         <p class="py-2 text-xs text-[#71717a]">Henüz kasa veya banka hesabı tanımlanmadı.</p>
@@ -231,6 +229,8 @@
             </div>
         </section>
     </div>
+
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
 
     <section style="--stagger: 6" class="spotlight-card reveal-up rounded-[24px] border border-[#1f1f23] bg-[#141416] p-6">
         <div class="relative z-10 flex flex-wrap items-center justify-between gap-4 border-b border-[#1f1f23] pb-4">
@@ -302,7 +302,7 @@
                             </span>
                             <div class="min-w-0">
                                 <p class="truncate font-medium text-white">{{ $tx->description ?: ($isInc ? 'Aidat tahsilatı' : 'Genel gider') }}</p>
-                                <p class="truncate text-[11px] text-[#71717a]">{{ $tx->cashbox?->name ?? 'Merkez Kasa' }} @if ($tx->unit) · Daire {{ $tx->unit->label() }} @endif · {{ $tx->created_at->diffForHumans() }}</p>
+                                <p class="truncate text-[11px] text-[#71717a]">{{ $tx->cashbox?->name ?? 'Merkez Kasa' }} @if ($tx->unit) · Daire <x-unit-link :unit="$tx->unit" /> @endif · {{ $tx->created_at->diffForHumans() }}</p>
                             </div>
                         </div>
                         <div class="flex shrink-0 items-center gap-2.5">

@@ -1,4 +1,6 @@
 <x-layout heading="Personel" :subheading="$apartment->name">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     @php
         $fields = function ($s = null) {
             $p = $s ? 's'.$s->id.'-' : 's-';
@@ -13,6 +15,8 @@
             <button class="btn btn-primary">Kaydet</button>
         </form>
     </details>
+
+    <x-dash.filters :fields="[['name' => 'role', 'label' => 'Görev', 'type' => 'select', 'options' => array_combine(\App\Models\Staff::ROLES, \App\Models\Staff::ROLES)], ['name' => 'q', 'label' => 'Ara', 'type' => 'search', 'placeholder' => 'Ad veya telefon']]" />
 
     <section class="card">
         <div class="overflow-x-auto">

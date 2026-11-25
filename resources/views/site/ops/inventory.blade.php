@@ -1,4 +1,6 @@
 <x-layout heading="Stok / Envanter" :subheading="$apartment->name">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
     @php $low = $items->filter->isLow(); @endphp
     @if ($low->isNotEmpty())
         <div role="status" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -22,6 +24,8 @@
         </form>
     </details>
 
+    <x-dash.filters :fields="[['name' => 'category', 'label' => 'Kategori', 'type' => 'select', 'options' => array_combine(\App\Models\InventoryItem::CATEGORIES, \App\Models\InventoryItem::CATEGORIES)], ['name' => 'low', 'label' => 'Yalnızca kritik stok', 'type' => 'check']]" />
+
     <section class="card">
         <div class="overflow-x-auto">
             <table class="table">
@@ -41,7 +45,17 @@
                                 <button class="btn btn-secondary btn-sm">Uygula</button>
                             </form>
                         </td>
-                        <td class="text-right"><form method="POST" action="{{ route('site.inventory.destroy', [$apartment, $i]) }}" onsubmit="return confirm('Silinsin mi?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Sil</button></form></td>
+                        <td class="flex justify-end gap-1">
+                            <x-dash.edit-panel :action="route('site.inventory.update', [$apartment, $i])">
+                                <div><label class="label" for="in-name-{{ $i->id }}">Ad *</label><input class="input" id="in-name-{{ $i->id }}" name="name" maxlength="120" value="{{ $i->name }}" required></div>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <div><label class="label" for="in-cat-{{ $i->id }}">Kategori</label><select class="input" id="in-cat-{{ $i->id }}" name="category">@foreach (\App\Models\InventoryItem::CATEGORIES as $category)<option @selected($category === $i->category)>{{ $category }}</option>@endforeach</select></div>
+                                    <div><label class="label" for="in-unit-{{ $i->id }}">Birim *</label><input class="input" id="in-unit-{{ $i->id }}" name="unit" maxlength="20" value="{{ $i->unit }}" required></div>
+                                    <div><label class="label" for="in-min-{{ $i->id }}">Kritik stok *</label><input class="input" id="in-min-{{ $i->id }}" type="number" min="0" name="min_stock" value="{{ $i->min_stock }}" required></div>
+                                    <div><label class="label" for="in-loc-{{ $i->id }}">Konum *</label><input class="input" id="in-loc-{{ $i->id }}" name="location" maxlength="60" value="{{ $i->location }}" required></div>
+                                </div>
+                            </x-dash.edit-panel>
+                            <form method="POST" action="{{ route('site.inventory.destroy', [$apartment, $i]) }}" onsubmit="return confirm('Silinsin mi?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Sil</button></form></td>
                     </tr>
                 @empty
                     <tr><td colspan="6" class="text-center text-slate-500">Stok kalemi yok.</td></tr>
