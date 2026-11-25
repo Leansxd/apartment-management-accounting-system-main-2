@@ -72,12 +72,12 @@ class DashboardService
             'performance' => $performance, 'prevPerformance' => $prevPerformance,
             'monthly' => $rawMonthly->values()->all(),
             'daily' => $this->dailyTimeline([$apartment->id]),
-            'balanceHistory' => $this->balanceHistory($rawMonthly, $summary['balance']),
+            'balanceHistory' => $this->balanceHistory($rawMonthly, $summary['balance'], [$apartment->id]),
             'collectionState' => $this->collectionState($apartment->debts()),
             'funnel' => $this->funnel($apartment->debts(), $w['from'], $w['to']),
             'topDebtors' => $this->topDebtors($apartment),
             'expenseByCategory' => $this->expenseByCategory($apartment, $w['from'], $w['to']),
-            'cashboxes' => $apartment->cashboxes()->orderBy('name')->get(['id', 'name', 'type', 'balance']),
+            'cashboxes' => $apartment->cashboxes()->orderBy('name')->get(['id', 'name', 'type', 'balance', 'currency', 'currency_balance']),
             'occupancy' => [
                 'blocks' => $apartment->blocks()->count(),
                 'groups' => $apartment->unitGroups()->count(),
@@ -140,9 +140,8 @@ class DashboardService
         $start = CarbonImmutable::today()->subDays(29);
         $txByDay = CashTransaction::whereIn('apartment_id', $apartmentIds)
             ->operating()
-            ->where('type', 'income')
             ->whereDate('created_at', '>=', $start->toDateString())
-            ->get(['amount', 'created_at'])
+            ->get(['type', 'amount', 'created_at'])
             ->groupBy(fn ($t) => $t->created_at->toDateString());
 
         $debtsByDay = Debt::whereIn('apartment_id', $apartmentIds)
@@ -153,22 +152,40 @@ class DashboardService
         return collect(range(0, 29))->map(function ($i) use ($start, $txByDay, $debtsByDay) {
             $day = $start->addDays($i);
             $key = $day->toDateString();
+            $transactions = $txByDay->get($key, collect());
+            $income = $transactions->where('type', 'income');
+            $debts = $debtsByDay->get($key, collect());
 
             return [
                 'label' => $day->locale('tr')->translatedFormat('j M'),
-                'paid' => (float) ($txByDay->get($key)?->sum('amount') ?? 0),
-                'invoiced' => (float) ($debtsByDay->get($key)?->sum('amount') ?? 0),
+                'day' => $day->day,
+                'month' => $day->locale('tr')->translatedFormat('M'),
+                'full' => $day->locale('tr')->translatedFormat('j F Y, l'),
+                'is_today' => $day->isToday(),
+                'paid' => (float) $income->sum('amount'),
+                'paid_count' => $income->count(),
+                'invoiced' => (float) $debts->sum('amount'),
+                'invoiced_count' => $debts->count(),
+                'expense' => (float) $transactions->where('type', 'expense')->sum('amount'),
             ];
         })->all();
     }
 
-    private function balanceHistory(Collection $monthly, float $balance): array
+    /**
+     * Ay sonu kasa toplamları: bugünkü bakiyeden geriye doğru her ayın net hareketi düşülür. Gelir / gider sayılmayan
+     * açılış bakiyeleri de kasayı değiştirdiği için girildikleri aydan önceki aylardan düşülür.
+     *
+     * @param  array<int, int>  $apartmentIds
+     */
+    private function balanceHistory(Collection $monthly, float $balance, array $apartmentIds): array
     {
+        $openings = CashTransaction::whereIn('apartment_id', $apartmentIds)->effective()->where('sub_type', 'opening')
+            ->get(['amount', 'created_at'])->groupBy(fn ($t) => $t->created_at->format('Y-m'))->map(fn ($g) => (float) $g->sum('amount'));
         $points = [];
         $running = $balance;
         foreach ($monthly->reverse() as $m) {
             array_unshift($points, ['label' => $m['label'], 'value' => round($running, 2)]);
-            $running -= $m['income'] - $m['expense'];
+            $running -= $m['income'] - $m['expense'] + ($openings[$m['key']] ?? 0);
         }
 
         return $points;
@@ -255,20 +272,6 @@ class DashboardService
         return $rest > 0 ? $top->push(['label' => 'Diğer', 'value' => $rest]) : $top;
     }
 
-    public function classicHud(Apartment $apartment): array
-    {
-        return [
-            'summary' => $this->reports->summary($apartment),
-            'collection' => $this->reports->collectionPerformance($apartment),
-            'monthly' => $this->reports->monthly($apartment, 12),
-            'cashboxes' => $apartment->cashboxes()->orderBy('name')->get(),
-            'recentExpenses' => $apartment->expenses()->with('vendor')->latest('id')->limit(8)->get(),
-            'recentIncomes' => $apartment->cashTransactions()->with('unit.block')->where('type', 'income')->latest('id')->limit(8)->get(),
-            'units' => $apartment->units()->with(['block', 'members'])->get(),
-            'incomeCategories' => $apartment->categories()->where('type', 'income')->get(),
-        ];
-    }
-
     public function overview(User $user, string $range = 'month'): array
     {
         $w = $this->window($range);
@@ -291,6 +294,7 @@ class DashboardService
             $items = $tx->get($month->format('Y-m'), collect());
 
             return [
+                'key' => $month->format('Y-m'),
                 'label' => $month->locale('tr')->translatedFormat('M'),
                 'full' => $month->locale('tr')->translatedFormat('F Y'),
                 'income' => (float) $items->where('type', 'income')->sum('amount'),
@@ -305,7 +309,7 @@ class DashboardService
             'sites' => $sites,
             'monthly' => $rawMonthly->values()->all(),
             'daily' => $this->dailyTimeline($ids),
-            'balanceHistory' => $this->balanceHistory($rawMonthly, $balance),
+            'balanceHistory' => $this->balanceHistory($rawMonthly, $balance, $ids),
             'now' => $rawMonthly->last(), 'prev' => $rawMonthly->slice(-2, 1)->first(),
             'collectionState' => $state,
             'totals' => [
