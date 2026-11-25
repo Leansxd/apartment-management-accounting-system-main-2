@@ -15,7 +15,18 @@ class DebtPayment extends Model
         return ['amount' => 'decimal:2'];
     }
 
-    public function debt(): BelongsTo { return $this->belongsTo(Debt::class); }
+    public function debt(): BelongsTo
+    {
+        return $this->belongsTo(Debt::class);
+    }
 
-    public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
+    public function cashTransaction(): BelongsTo
+    {
+        return $this->belongsTo(CashTransaction::class);
+    }
+
+    public function apartment(): BelongsTo
+    {
+        return $this->belongsTo(Apartment::class);
+    }
 }

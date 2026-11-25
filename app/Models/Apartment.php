@@ -12,12 +12,23 @@ class Apartment extends Model
 {
     protected $guarded = ['id'];
 
+    /** @var array<int, string|null> roleOf() önbelleği: kullanıcı id => rol */
+    private array $resolvedRoles = [];
+
     protected function casts(): array
     {
         return [
             'allow_negative_cashbox' => 'boolean',
+            'role_permissions' => 'array',
             'late_fee_enabled' => 'boolean',
             'late_fee_rate' => 'decimal:2',
+            'dues_auto_run' => 'boolean',
+            'late_fee_auto_run' => 'boolean',
+            'closed_until' => 'date',
+            'reminder_auto_run' => 'boolean',
+            'reminder_send_email' => 'boolean',
+            'reminder_interval_days' => 'integer',
+            'reminder_last_run_at' => 'datetime',
         ];
     }
 
@@ -53,6 +64,12 @@ class Apartment extends Model
     public function managers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'apartment_manager')->withPivot('role');
+    }
+
+    /** Yeni işlem yapılabilen kasalar; pasif kasa raporlarda görünmeye devam eder */
+    public function activeCashboxes(): HasMany
+    {
+        return $this->cashboxes()->where('is_active', true);
     }
 
     public function blocks(): HasMany
@@ -224,7 +241,12 @@ class Apartment extends Model
             return 'manager';
         }
 
-        return $user->isAdmin() ? $this->managers()->whereKey($user->id)->first()?->pivot->role : null;
+        // Bir sayfada çok kez sorulur (menü, bağlantılar); istek boyunca kullanıcı başına bir kez okunur
+        if (! array_key_exists($user->id, $this->resolvedRoles)) {
+            $this->resolvedRoles[$user->id] = $user->isAdmin() ? $this->managers()->whereKey($user->id)->first()?->pivot->role : null;
+        }
+
+        return $this->resolvedRoles[$user->id];
     }
 
     /** Panel kullanıcısı bu apartmanı yönetebilir mi? (süper admin, sahip veya yönetici listesi) */

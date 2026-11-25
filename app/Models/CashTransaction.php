@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
@@ -24,7 +25,10 @@ class CashTransaction extends Model
         'reversal' => 'İptal (Ters Kayıt)',
         'general' => 'Genel',
         'opening' => 'Açılış Bakiyesi',
+        'fx_difference' => 'Kur Farkı',
     ];
+
+    public const COLLECTION_TYPES = ['collection', 'pos', 'advance'];
 
     protected $guarded = ['id'];
 
@@ -34,8 +38,20 @@ class CashTransaction extends Model
             'amount' => 'decimal:2',
             'applied_to_debts' => 'decimal:2',
             'to_advance' => 'decimal:2',
+            'original_amount' => 'decimal:2',
+            'exchange_rate' => 'decimal:6',
             'reversed_at' => 'datetime',
         ];
+    }
+
+    /** Döviz bilgisi verilmeyen hareketler TRY'dir: orijinal tutar TRY tutarıdır, kur 1'dir. */
+    protected static function booted(): void
+    {
+        static::creating(function (CashTransaction $transaction): void {
+            $transaction->currency ??= Cashbox::BASE_CURRENCY;
+            $transaction->exchange_rate ??= 1;
+            $transaction->original_amount ??= $transaction->amount;
+        });
     }
 
     /** Banka metni veya iptal nedeni eklenen açıklamalar kolon sınırını (255) aşmasın. */
@@ -64,6 +80,12 @@ class CashTransaction extends Model
         return $this->belongsTo(TransactionCategory::class);
     }
 
+    /** Tahsilatı ödeyen sakin (seçilmediyse daire adına alınmıştır) */
+    public function payer(): BelongsTo
+    {
+        return $this->belongsTo(Member::class, 'payer_member_id')->withTrashed();
+    }
+
     public function performer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'performed_by');
@@ -79,6 +101,27 @@ class CashTransaction extends Model
     public function scopeOperating(Builder $query): void
     {
         $query->effective()->where('sub_type', 'not like', 'transfer%')->where('sub_type', '!=', 'opening');
+    }
+
+    public function isForeign(): bool
+    {
+        return $this->currency !== Cashbox::BASE_CURRENCY;
+    }
+
+    /** Orijinal tutar ve kur: "100,00 $ × 30,5000". TRY harekette boştur. */
+    public function originalLabel(): ?string
+    {
+        if (! $this->isForeign() || $this->isFxDifference()) {
+            return null;
+        }
+
+        return Money::formatIn($this->original_amount, $this->currency).' × '.Money::formatRate($this->exchange_rate);
+    }
+
+    /** Kur farkı kaydı virmanın parçasıdır, tek başına iptal edilemez. */
+    public function isFxDifference(): bool
+    {
+        return $this->sub_type === 'fx_difference';
     }
 
     public function isTransfer(): bool
