@@ -67,7 +67,7 @@ class MeterBillService
     public function cancel(MeterBill $bill, ?User $by = null): int
     {
         return DB::transaction(function () use ($bill, $by) {
-            $debts = Debt::where('apartment_id', $bill->apartment_id)->where('distribution_id', "meter:{$bill->id}")->get();
+            $debts = Debt::with('apartment')->where('apartment_id', $bill->apartment_id)->where('distribution_id', "meter:{$bill->id}")->get();
             foreach ($debts as $debt) {
                 $this->finance->deleteDebt($debt, $by);
             }
