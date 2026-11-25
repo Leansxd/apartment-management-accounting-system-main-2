@@ -32,5 +32,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::get('/meetings', [ResidentController::class, 'meetings']);
         Route::get('/tickets', [ResidentController::class, 'tickets']);
         Route::post('/tickets', [ResidentController::class, 'storeTicket']);
+        Route::post('/tickets/{ticket}/messages', [ResidentController::class, 'storeTicketMessage'])->whereNumber('ticket');
+        Route::get('/tickets/{ticket}/messages/{message}/attachment', [ResidentController::class, 'ticketAttachment'])->whereNumber(['ticket', 'message']);
     });
 });

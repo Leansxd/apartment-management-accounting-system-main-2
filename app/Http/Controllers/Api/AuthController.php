@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\AuditTrail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -26,7 +27,7 @@ class AuthController extends Controller
         return response()->json(['token' => $user->createToken($data['device_name'])->plainTextToken, 'user' => $this->profile($user)], 201);
     }
 
-    public function login(Request $request)
+    public function login(Request $request, AuditTrail $audit)
     {
         $data = $request->validate([
             'email' => ['required', 'email'],
@@ -35,9 +36,12 @@ class AuthController extends Controller
         ]);
         $user = User::where('email', $data['email'])->first();
         if (! $user || ! Hash::check($data['password'], $user->password)) {
+            $audit->logAuthentication('LOGIN_FAILED', $user, ['email' => $data['email'], 'channel' => 'api']);
+
             throw ValidationException::withMessages(['email' => 'E-posta veya şifre hatalı.']);
         }
         $user->forceFill(['last_login_at' => now()])->save();
+        $audit->logAuthentication('LOGIN', $user, ['channel' => 'api', 'device' => $data['device_name']]);
 
         return response()->json(['token' => $user->createToken($data['device_name'])->plainTextToken, 'user' => $this->profile($user)]);
     }

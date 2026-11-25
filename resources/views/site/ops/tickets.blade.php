@@ -1,4 +1,8 @@
 <x-layout heading="Destek Talepleri" :subheading="$apartment->name.' · mobil uygulamadan açılan talepler de burada görünür'">
+    <x-dash.module-summary :summary="$moduleSummary ?? null" />
+
+    <x-dash.filters :fields="[['name' => 'category', 'label' => 'Kategori', 'type' => 'select', 'options' => array_combine(\App\Models\Ticket::CATEGORIES, \App\Models\Ticket::CATEGORIES)], ['name' => 'priority', 'label' => 'Öncelik', 'type' => 'select', 'options' => \App\Models\Ticket::PRIORITIES], ['name' => 'q', 'label' => 'Ara', 'type' => 'search', 'placeholder' => 'Konu veya daire']]" :keep="['status']" />
+
     <details class="panel card" @if($errors->any()) open @endif>
         <summary class="card-head"><span class="card-title">+ Talep aç</span></summary>
         <form method="POST" action="{{ route('site.tickets.store', $apartment) }}" class="card-body space-y-4">
@@ -27,18 +31,28 @@
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h2 class="font-semibold text-slate-900">{{ $t->subject }}</h2>
-                        <p class="text-xs text-slate-500">{{ $t->created_at->format('d.m.Y H:i') }} · {{ $t->unit_no ?: 'Ortak alan' }} · {{ $t->category }}
+                        <p class="text-xs text-slate-500">{{ $t->created_at->format('d.m.Y H:i') }} · <x-unit-link :unit="$t->unit" :fallback="$t->unit_no ?: 'Ortak alan'" /> · {{ $t->category }}
                             @if ($t->user) · <span class="badge badge-blue">Mobil: {{ $t->user->name }}</span>@endif</p>
                     </div>
                     <span class="badge {{ $t->priority === 'high' ? 'badge-red' : 'badge-gray' }}">{{ \App\Models\Ticket::PRIORITIES[$t->priority] ?? $t->priority }}</span>
                 </div>
                 @if ($t->description)<p class="mt-2 text-sm text-slate-700 whitespace-pre-line">{{ $t->description }}</p>@endif
+                @include('site.ops._ticket-thread', ['t' => $t, 'attachmentRoute' => fn ($message) => route('site.tickets.attachment', [$apartment, $t, $message])])
+                @if ($t->status !== 'closed')
+                    <form method="POST" action="{{ route('site.tickets.messages', [$apartment, $t]) }}" enctype="multipart/form-data" class="mt-3 flex flex-wrap items-end gap-2">
+                        @csrf
+                        <div class="min-w-[16rem] flex-1"><label class="label" for="tm-{{ $t->id }}">Sakine yanıt yaz</label><input class="input" id="tm-{{ $t->id }}" name="body" maxlength="3000"></div>
+                        <div><label class="label" for="tp-{{ $t->id }}">Fotoğraf</label><input class="input" id="tp-{{ $t->id }}" type="file" name="photo" accept="image/jpeg,image/png,image/webp"></div>
+                        <button class="btn btn-primary">Gönder</button>
+                    </form>
+                @endif
                 <form method="POST" action="{{ route('site.tickets.update', [$apartment, $t]) }}" class="mt-3 flex flex-wrap items-end gap-2">
                     @csrf @method('PATCH')
                     <div><label class="label" for="ts-{{ $t->id }}">Durum</label><select class="input !w-auto" id="ts-{{ $t->id }}" name="status">@foreach (\App\Models\Ticket::STATUSES as $k => $v)<option value="{{ $k }}" @selected($t->status === $k)>{{ $v }}</option>@endforeach</select></div>
                     <div class="flex-1 min-w-[16rem]"><label class="label" for="tr-{{ $t->id }}">Yanıt (sakin görür)</label><input class="input" id="tr-{{ $t->id }}" name="response" value="{{ $t->response }}"></div>
                     <button class="btn btn-secondary">Güncelle</button>
                 </form>
+                <form method="POST" action="{{ route('site.tickets.destroy', [$apartment, $t]) }}" class="mt-2 text-right" onsubmit="return confirm('Talep ve fotoğrafları silinsin mi?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Talebi sil</button></form>
             </article>
         @empty
             <p class="text-sm text-slate-500">Talep yok.</p>
