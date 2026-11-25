@@ -269,12 +269,12 @@ class FinanceService
                     .' tahsilat yapılmış; silmeden önce tahsilatı iptal edin.');
             }
 
-            $lateFees = Debt::where('parent_debt_id', $debt->id)->where('kind', 'late_fee')->orderBy('id')->get();
+            $lateFees = Debt::with('apartment')->where('parent_debt_id', $debt->id)->where('kind', 'late_fee')->orderBy('id')->get();
             foreach ($lateFees as $lateFee) {
                 $this->deleteDebt($lateFee, $by);
             }
 
-            foreach (Debt::where('parent_debt_id', $debt->id)->where('kind', 'installment')->orderBy('id')->get() as $installment) {
+            foreach (Debt::with('apartment')->where('parent_debt_id', $debt->id)->where('kind', 'installment')->orderBy('id')->get() as $installment) {
                 $this->deleteDebt($installment, $by);
             }
 
@@ -647,7 +647,7 @@ class FinanceService
 
         DB::transaction(function () use ($from, $to, $amount, $description, $by, $targetAmount) {
             // Kilitler her zaman id sırasıyla alınır (karşılıklı virmanlarda kilitlenme olmaz)
-            $boxes = Cashbox::whereIn('id', [$from->id, $to->id])->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $boxes = Cashbox::with('apartment')->whereIn('id', [$from->id, $to->id])->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             $boxes->each(fn (Cashbox $box) => $this->assertCashboxActive($box));
             $from = $boxes[$from->id];
             $to = $boxes[$to->id];
