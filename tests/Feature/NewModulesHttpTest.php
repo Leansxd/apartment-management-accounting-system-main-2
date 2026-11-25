@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Mail\SiteMessageMail;
 use App\Models\Apartment;
 use App\Models\BankStatementLine;
 use App\Models\CashTransaction;
@@ -14,6 +15,7 @@ use App\Models\Member;
 use App\Models\Reservation;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
@@ -233,6 +235,69 @@ class NewModulesHttpTest extends TestCase
 
         $this->actingAs($this->admin)->post(route('site.notifications.store', $this->apt), [
             'title' => 'Su kesintisi', 'body' => 'Yarın 10:00', 'target' => 'units', 'unit_ids' => $units->pluck('id')->all(), 'send_email' => 1,
-        ])->assertSessionHas('status', fn ($s) => str_contains($s, 'E-posta: 1 gönderildi'));
+        ])->assertSessionHas('status', fn ($s) => str_contains($s, 'E-posta: 1 sıraya alındı'));
+
+        Mail::assertQueued(SiteMessageMail::class, 1);
+        Mail::assertQueued(SiteMessageMail::class, fn (SiteMessageMail $mail) => $mail->hasTo('a@ornek.com'));
+        Mail::assertNothingSent();
+    }
+
+    public function test_borc_hatirlatmasi_e_postasi_kuyruga_alinir(): void
+    {
+        Mail::fake();
+        $debt = $this->apt->debts()->where('status', Debt::PENDING)->whereDate('due_date', '<', today())->firstOrFail();
+        $this->apt->members()->where('unit_id', $debt->unit_id)->update(['email' => 'borclu@ornek.com']);
+
+        $this->actingAs($this->admin)->post(route('site.reminders.send', $this->apt), ['unit_ids' => [$debt->unit_id], 'send_email' => 1])
+            ->assertSessionHas('status', '1 daireye hatırlatma gönderildi. E-posta: 1 sıraya alındı.');
+
+        Mail::assertQueued(SiteMessageMail::class, fn (SiteMessageMail $mail) => $mail->hasTo('borclu@ornek.com') && $mail->subjectLine === 'Ödeme Hatırlatması');
+    }
+
+    public function test_site_e_postasi_kuyruktan_konu_ve_metinle_teslim_edilir(): void
+    {
+        Mail::to('sakin@ornek.com')->send(new SiteMessageMail('Deniz Sitesi', 'Su kesintisi', "Ali'nin dairesi & tüm blok"));
+
+        $message = Mail::getSymfonyTransport()->messages()->sole()->getOriginalMessage();
+
+        $this->assertSame('[Deniz Sitesi] Su kesintisi', $message->getSubject());
+        $this->assertSame('sakin@ornek.com', $message->getTo()[0]->getAddress());
+        $this->assertStringContainsString("Ali'nin dairesi & tüm blok", $message->getTextBody());
+        $this->assertStringContainsString('Deniz Sitesi Yönetimi', $message->getTextBody());
+    }
+
+    public function test_kuyruk_her_dakika_zamanlanir(): void
+    {
+        $event = collect(app(Schedule::class)->events())->first(fn ($event) => str_contains((string) $event->command, 'queue:work'));
+
+        $this->assertNotNull($event);
+        $this->assertSame('* * * * *', $event->expression);
+        $this->assertStringContainsString('--stop-when-empty', $event->command);
+    }
+
+    public function test_site_silinince_yalnizca_o_sitenin_belgeleri_diskten_silinir(): void
+    {
+        Storage::fake('local');
+        $other = $this->site(1, $this->admin);
+        Storage::disk('local')->put("documents/{$this->apt->id}/sozlesme.pdf", 'icerik');
+        Storage::disk('local')->put("documents/{$other->id}/karar.pdf", 'icerik');
+
+        $this->actingAs($this->admin)->delete(route('site.destroy', $this->apt), ['confirm' => $this->apt->code])
+            ->assertRedirect(route('sites.index'));
+
+        $this->assertModelMissing($this->apt);
+        Storage::disk('local')->assertMissing("documents/{$this->apt->id}/sozlesme.pdf");
+        Storage::disk('local')->assertExists("documents/{$other->id}/karar.pdf");
+    }
+
+    public function test_onay_kodu_yanlissa_site_ve_belgeleri_silinmez(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put("documents/{$this->apt->id}/sozlesme.pdf", 'icerik');
+
+        $this->actingAs($this->admin)->delete(route('site.destroy', $this->apt), ['confirm' => 'YANLIS'])->assertSessionHasErrors('confirm');
+
+        $this->assertModelExists($this->apt);
+        Storage::disk('local')->assertExists("documents/{$this->apt->id}/sozlesme.pdf");
     }
 }

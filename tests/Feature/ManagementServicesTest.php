@@ -11,8 +11,10 @@ use App\Services\BankImportService;
 use App\Services\FinanceException;
 use App\Services\FinanceService;
 use App\Services\PayrollService;
+use App\Services\ReportService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 class ManagementServicesTest extends TestCase
@@ -60,12 +62,52 @@ class ManagementServicesTest extends TestCase
         $bank->post($expense->fresh()); // ikinci kez işlenemez
     }
 
+    #[TestWith(['Dekont no 2'])]
+    #[TestWith(['FIS NO: 2 HAVALE'])]
+    #[TestWith(['ODEME D 2'])]
+    public function test_belge_numarasi_daire_sayilmaz(string $description): void
+    {
+        $apt = $this->site(3);
+
+        $this->assertNull(app(BankImportService::class)->matchUnit($description, $apt->units()->with('block', 'members')->get()));
+    }
+
+    #[TestWith(['DAIRE 2 AIDAT'])]
+    #[TestWith(['Daire No: 2'])]
+    #[TestWith(['Aidat D:2'])]
+    #[TestWith(['A-2 OCAK'])]
+    public function test_acik_daire_ifadesi_eslesir(string $description): void
+    {
+        $apt = $this->site(3);
+        $units = $apt->units()->with('block', 'members')->get();
+
+        $this->assertSame($units[1]->id, app(BankImportService::class)->matchUnit($description, $units)?->id);
+    }
+
+    public function test_ad_eslesmesi_kelimenin_tamamini_arar(): void
+    {
+        $apt = $this->site(1);
+        $apt->members()->create(['unit_id' => $this->unit($apt)->id, 'type' => 'owner', 'full_name' => 'Ali Can']);
+        $units = $apt->units()->with('block', 'members')->get();
+        $bank = app(BankImportService::class);
+
+        $this->assertNull($bank->matchUnit('HAVALE ALI CANSU', $units));
+        $this->assertSame($units[0]->id, $bank->matchUnit('HAVALE-CAN,ALI', $units)?->id);
+    }
+
     public function test_banka_ekstresi_ayri_giris_cikis_sutunlari(): void
     {
         $rows = app(BankImportService::class)->parse("Tarih,Açıklama,Giriş,Çıkış\n2026-03-01,Kira,2500.00,\n2026-03-02,Gider,,\"300,50\"\n");
 
         $this->assertSame(250000, $rows[0]['amount']);
         $this->assertSame(-30050, $rows[1]['amount']);
+    }
+
+    public function test_banka_ekstresi_turkce_ve_para_birimli_tutarlari_dogru_okur(): void
+    {
+        $rows = app(BankImportService::class)->parse("Tarih;Açıklama;Tutar\n2026-03-01;Aidat;1.250\n2026-03-02;Kira;TL 12.500,00\n2026-03-03;İade;(300,50)\n");
+
+        $this->assertSame([125000, 1250000, -30050], array_column($rows, 'amount'));
     }
 
     public function test_banka_ekstresinde_islem_ile_baslayan_sutunlar_aciklamanin_yerine_gecmez(): void
@@ -210,6 +252,36 @@ class ManagementServicesTest extends TestCase
         $this->assertEquals(250, $b['expense'][0]['actual']);
         $this->assertEquals(8.3, $b['expense'][0]['pct']);
         $this->assertEquals(12000, $b['totals']['income_planned']);
+    }
+
+    public function test_butce_avanstan_mahsup_edilen_geliri_de_gerceklesen_sayar(): void
+    {
+        $apt = $this->site(1);
+        $finance = app(FinanceService::class);
+        $aidat = $apt->categories()->create(['name' => 'Aidat', 'type' => 'income']);
+        $year = (int) now()->year;
+
+        $finance->collect($this->unit($apt), $this->cashbox($apt), 30000); // borç yokken: tamamı avans
+        $finance->accrue($this->unit($apt), ['description' => 'Aidat', 'amount' => 100000, 'due_date' => now()->toDateString(), 'category_id' => $aidat->id]);
+        $finance->collect($this->unit($apt), $this->cashbox($apt), 20000);
+
+        $b = app(AccountingReportService::class)->budget($apt, $year);
+        $this->assertEquals(500, $b['income'][0]['actual']);
+    }
+
+    public function test_ekstre_avans_iadesini_bakiyeden_duser(): void
+    {
+        $apt = $this->site(1);
+        $finance = app(FinanceService::class);
+        $unit = $this->unit($apt);
+        $finance->collect($unit, $this->cashbox($apt), 80000);
+        $finance->refundAdvance($unit, $this->cashbox($apt), 50000);
+
+        $statement = app(ReportService::class)->statement($unit->fresh());
+
+        $this->assertEquals(-300, $statement['closing']);
+        $this->assertEquals(-(float) $unit->fresh()->credit_balance, $statement['closing']);
+        $this->assertSame('Avans iadesi', collect($statement['rows'])->last()['description']);
     }
 
     // ------------------------------------------------------------ DEMİRBAŞ

@@ -7,6 +7,7 @@ use App\Models\Cashbox;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Testing\TestResponse;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -14,6 +15,17 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
         @unlink(config('setup.marker'));
+    }
+
+    /** İndirilen Excel (.xlsx) dosyasının çalışma sayfası XML'i; hücre metinleri bunun içinde aranır */
+    protected function spreadsheetXml(TestResponse $response): string
+    {
+        $zip = new \ZipArchive;
+        $zip->open($response->baseResponse->getFile()->getPathname());
+        $xml = (string) $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+
+        return $xml;
     }
 
     protected function admin(bool $super = false): User
